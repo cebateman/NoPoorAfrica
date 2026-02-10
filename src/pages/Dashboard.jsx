@@ -10,6 +10,7 @@ import {
   EyeOff,
   Calendar,
   Upload,
+  Printer,
 } from 'lucide-react';
 import {
   ResponsiveContainer,
@@ -104,6 +105,13 @@ export default function Dashboard() {
   const [selectedMonthIdx, setSelectedMonthIdx] = useState(null);
 
   const show = (id) => visibility[id] !== false;
+
+  const handlePrint = useCallback(() => {
+    // Stamp the print date for the CSS ::after footer
+    const el = document.querySelector('.dashboard');
+    if (el) el.setAttribute('data-print-date', new Date().toLocaleDateString());
+    window.print();
+  }, []);
 
   const toggleSection = useCallback((id) => {
     setVisibility((prev) => {
@@ -320,13 +328,23 @@ export default function Dashboard() {
             <BarChart3 size={24} style={{ verticalAlign: 'middle', marginRight: 8 }} />
             No Poor Africa — FY {year}
           </h2>
-          <button
-            className="btn btn--outline btn--settings"
-            onClick={() => setShowSettings(!showSettings)}
-          >
-            <Settings size={14} />
-            Customize ({visibleCount}/{ALL_SECTION_IDS.length})
-          </button>
+          <div className="dashboard__actions">
+            <button
+              className="btn btn--outline btn--settings no-print"
+              onClick={() => setShowSettings(!showSettings)}
+            >
+              <Settings size={14} />
+              Customize ({visibleCount}/{ALL_SECTION_IDS.length})
+            </button>
+            <button
+              className="btn btn--outline no-print"
+              onClick={handlePrint}
+              title="Export as PDF"
+            >
+              <Printer size={14} />
+              Print / PDF
+            </button>
+          </div>
         </div>
         <p className="dashboard__subtitle">
           Financial Leadership Dashboard

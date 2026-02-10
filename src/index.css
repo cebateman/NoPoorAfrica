@@ -152,6 +152,12 @@ body {
   flex-wrap: wrap;
 }
 
+.dashboard__actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
 .btn--settings {
   font-size: 12px;
   gap: 6px;
@@ -1100,4 +1106,187 @@ body {
   font-size: 9px;
   color: var(--color-favorable);
   margin-right: 4px;
+}
+
+/* ═══════════════════════════════════════════════
+   Print / PDF Styles
+   ═══════════════════════════════════════════════ */
+@media print {
+  /* Hide interactive / non-printable elements */
+  .no-print,
+  .settings-panel,
+  .filter-bar,
+  .header .nav,
+  .currency-toggle,
+  .footer {
+    display: none !important;
+  }
+
+  /* Reset page layout */
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  @page {
+    size: A4 landscape;
+    margin: 12mm 10mm;
+  }
+
+  body {
+    background: #fff;
+    font-size: 11px;
+  }
+
+  /* Flatten layout — remove shadows, max-width */
+  .layout {
+    max-width: 100%;
+  }
+
+  .header {
+    background: #fff !important;
+    box-shadow: none;
+    border-bottom: 2px solid var(--color-text);
+    padding: 0 0 8px;
+    margin-bottom: 12px;
+  }
+
+  .header h1 {
+    font-size: 18px;
+  }
+
+  .header-subtitle {
+    font-size: 11px;
+  }
+
+  .main {
+    padding: 0;
+  }
+
+  .dashboard {
+    gap: 12px;
+  }
+
+  .dashboard__header {
+    margin-bottom: 4px;
+  }
+
+  .dashboard__header-top h2 {
+    font-size: 16px;
+  }
+
+  .dashboard__subtitle {
+    font-size: 11px;
+  }
+
+  /* KPI cards — tighten */
+  .kpi-grid {
+    gap: 8px;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  }
+
+  .kpi-card {
+    padding: 10px 12px;
+    box-shadow: none;
+    border: 1px solid var(--color-border);
+  }
+
+  .kpi-card__amount {
+    font-size: 18px;
+  }
+
+  /* Charts — ensure they render and fit */
+  .chart-grid {
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+
+  .chart-container,
+  .chart-container--full {
+    box-shadow: none;
+    border: 1px solid var(--color-border);
+    padding: 12px;
+    break-inside: avoid;
+  }
+
+  .chart__title {
+    font-size: 12px;
+    margin-bottom: 8px;
+  }
+
+  /* Recharts responsive containers need a fixed height in print */
+  .recharts-responsive-container {
+    min-height: 250px !important;
+  }
+
+  /* Tables — compact for print */
+  .fin-table-container {
+    box-shadow: none;
+    border: 1px solid var(--color-border);
+    padding: 10px;
+    break-inside: avoid;
+  }
+
+  .fin-table {
+    font-size: 10px;
+  }
+
+  .fin-table th,
+  .fin-table td {
+    padding: 4px 6px;
+  }
+
+  .fin-table__title {
+    font-size: 12px;
+  }
+
+  /* Monthly review */
+  .monthly-review {
+    box-shadow: none;
+    border: 1px solid var(--color-border);
+    padding: 12px;
+    break-inside: avoid;
+  }
+
+  /* Bridge tables */
+  .bridge {
+    break-inside: avoid;
+  }
+
+  .bridge__narrative {
+    font-size: 11px;
+    padding: 8px 12px;
+    margin: 8px 0 12px;
+  }
+
+  .bridge__grid {
+    gap: 16px;
+  }
+
+  .bridge__table {
+    font-size: 10px;
+  }
+
+  /* Budget progress */
+  .section {
+    break-inside: avoid;
+  }
+
+  /* Page break hints — try to keep major sections together */
+  .kpi-grid,
+  .chart-grid {
+    break-inside: avoid;
+  }
+
+  /* Print date stamp in footer area */
+  .dashboard::after {
+    content: "Printed on " attr(data-print-date);
+    display: block;
+    text-align: right;
+    font-size: 9px;
+    color: #999;
+    margin-top: 16px;
+    padding-top: 8px;
+    border-top: 1px solid #ddd;
+  }
 }
