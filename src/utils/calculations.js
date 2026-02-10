@@ -151,6 +151,68 @@ export function buildMonthlyComparison(categories, months, options = {}) {
 }
 
 /**
+ * Build a continuous timeline spanning prior year actuals → current year actuals → forward budget.
+ * Returns one data point per month across all relevant years.
+ *
+ * options.actualsYear  — year of current actuals
+ * options.priorYear    — year of prior actuals
+ * options.budgetYear   — year of budget data
+ */
+export function buildTimelineData(categories, months, options = {}) {
+  const { actualsYear, budgetYear, priorYear } = options;
+
+  // Collect all years we have data for
+  const years = new Set();
+  if (priorYear) years.add(priorYear);
+  if (actualsYear) years.add(actualsYear);
+  if (budgetYear) years.add(budgetYear);
+  if (years.size === 0) return [];
+
+  const sortedYears = [...years].sort((a, b) => a - b);
+  const startYear = sortedYears[0];
+  const endYear = sortedYears[sortedYears.length - 1];
+
+  // Max month with actual data in current year
+  const maxActualMonth = categories.reduce((max, cat) => {
+    return Math.max(max, (cat.actualMonthly || []).length - 1);
+  }, -1);
+
+  const data = [];
+  for (let y = startYear; y <= endYear; y++) {
+    for (let m = 0; m < 12; m++) {
+      const label = `${months[m]} '${String(y).slice(-2)}`;
+
+      let actual = null;
+      let budget = null;
+
+      // Current year actuals
+      if (y === actualsYear && m <= maxActualMonth) {
+        actual = categories.reduce(
+          (sum, cat) => sum + ((cat.actualMonthly || [])[m] || 0), 0,
+        );
+      }
+      // Prior year actuals
+      if (y === priorYear) {
+        actual = categories.reduce(
+          (sum, cat) => sum + ((cat.priorYearMonthly || [])[m] || 0), 0,
+        );
+      }
+
+      // Budget (show for the budget year)
+      if (y === budgetYear) {
+        budget = categories.reduce(
+          (sum, cat) => sum + ((cat.budgetMonthly || [])[m] || 0), 0,
+        );
+      }
+
+      data.push({ month: label, actual, budget, year: y, monthIndex: m });
+    }
+  }
+
+  return data;
+}
+
+/**
  * Build category summary rows for a table.
  */
 export function buildCategorySummary(categories) {

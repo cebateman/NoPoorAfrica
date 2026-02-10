@@ -32,12 +32,14 @@ import {
   variance,
   variancePct,
   buildMonthlyComparison,
+  buildTimelineData,
   buildCategorySummary,
 } from '../utils/calculations';
 import KpiCard from '../components/KpiCard';
 import FinancialTable from '../components/FinancialTable';
 import MonthlyChart from '../components/MonthlyChart';
 import BudgetProgressBar from '../components/BudgetProgressBar';
+import TimelineChart from '../components/TimelineChart';
 import LeadershipList from '../components/LeadershipList';
 
 const PIE_COLORS = ['#2563eb', '#7c3aed', '#059669', '#d97706', '#dc2626', '#0891b2', '#be185d', '#65a30d'];
@@ -165,6 +167,13 @@ export default function Dashboard() {
       })
     : [];
 
+  // ── Timeline (full-width 2-year view) ──
+  const mzTimelineData = mzCategories.length > 0
+    ? buildTimelineData(mzCategories, MONTHS, {
+        actualsYear: actualsYear, budgetYear: budgetYear, priorYear: priorYear,
+      })
+    : [];
+
   // ── Pie data for MZ program allocation ──
   const mzPieData = mzCategories
     .map((cat) => ({ name: cat.name, value: ytdTotal([cat]) }))
@@ -251,6 +260,17 @@ export default function Dashboard() {
           ]}
         />
       </div>
+
+      {/* ── Full-width Timeline ── */}
+      {mzTimelineData.length > 0 && (
+        <TimelineChart
+          title="MZ Expense Timeline: Prior Year Actuals → Current Actuals → Forward Budget"
+          data={mzTimelineData}
+          actualsYear={actualsYear}
+          budgetYear={budgetYear}
+          priorYear={priorYear}
+        />
+      )}
 
       {/* ── Expense Split ── */}
       {splitPieData.length > 0 && (

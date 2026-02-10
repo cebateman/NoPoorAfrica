@@ -251,6 +251,10 @@ body {
   box-shadow: var(--shadow);
 }
 
+.chart-container--full {
+  grid-column: 1 / -1;
+}
+
 .chart__title {
   font-size: 14px;
   font-weight: 600;
