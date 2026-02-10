@@ -1,10 +1,13 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import {
   BarChart3,
   TrendingUp,
   TrendingDown,
   DollarSign,
   PieChart as PieChartIcon,
+  Settings,
+  Eye,
+  EyeOff,
 } from 'lucide-react';
 import {
   ResponsiveContainer,
@@ -43,6 +46,53 @@ import TimelineChart from '../components/TimelineChart';
 import LeadershipList from '../components/LeadershipList';
 
 const PIE_COLORS = ['#2563eb', '#7c3aed', '#059669', '#d97706', '#dc2626', '#0891b2', '#be185d', '#65a30d'];
+
+// ── Dashboard section definitions ──
+const SECTIONS = [
+  { id: 'kpiRevenue',     label: 'KPI: YTD Revenue',             group: 'KPI Cards' },
+  { id: 'kpiExpenses',    label: 'KPI: YTD Expenses',            group: 'KPI Cards' },
+  { id: 'kpiNet',         label: 'KPI: Net Position',            group: 'KPI Cards' },
+  { id: 'kpiBudget',      label: 'KPI: Annual Budget',           group: 'KPI Cards' },
+  { id: 'timeline',       label: 'Expense Timeline (full width)', group: 'Charts' },
+  { id: 'pieExpenseSplit', label: 'Pie: MZ vs US Expense Split',  group: 'Charts' },
+  { id: 'pieMzBreakdown', label: 'Pie: MZ Program Breakdown',    group: 'Charts' },
+  { id: 'chartRevenue',   label: 'Revenue Bar Chart',            group: 'Charts' },
+  { id: 'chartMzExpense', label: 'MZ Expense Bar Chart',         group: 'Charts' },
+  { id: 'tableExpenses',  label: 'Expense Table',                group: 'Tables' },
+  { id: 'tableRevenue',   label: 'Revenue Table',                group: 'Tables' },
+  { id: 'budgetMz',       label: 'Budget Progress: MZ',          group: 'Budget Progress' },
+  { id: 'budgetUs',       label: 'Budget Progress: US',          group: 'Budget Progress' },
+  { id: 'budgetRevenue',  label: 'Budget Progress: Revenue',     group: 'Budget Progress' },
+  { id: 'leadership',     label: 'Leadership Lists',             group: 'Other' },
+];
+
+const ALL_SECTION_IDS = SECTIONS.map((s) => s.id);
+const STORAGE_KEY = 'npa_dashboard_sections';
+
+function loadSectionVisibility() {
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY);
+    if (stored) {
+      const parsed = JSON.parse(stored);
+      // Merge with defaults — new sections default to visible
+      const result = {};
+      ALL_SECTION_IDS.forEach((id) => {
+        result[id] = parsed[id] !== undefined ? parsed[id] : true;
+      });
+      return result;
+    }
+  } catch { /* noop */ }
+  // Default: all visible
+  const result = {};
+  ALL_SECTION_IDS.forEach((id) => { result[id] = true; });
+  return result;
+}
+
+function saveSectionVisibility(visibility) {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(visibility));
+  } catch { /* noop */ }
+}
 
 // US expense categories tagged with location
 const US_EXPENSE_CATEGORIES = [
@@ -92,6 +142,25 @@ export default function Dashboard() {
   } = useData();
   const { format } = useCurrency();
   const [selectedCenter, setSelectedCenter] = useState('');
+  const [showSettings, setShowSettings] = useState(false);
+  const [visibility, setVisibility] = useState(loadSectionVisibility);
+
+  const show = (id) => visibility[id] !== false;
+
+  const toggleSection = useCallback((id) => {
+    setVisibility((prev) => {
+      const next = { ...prev, [id]: !prev[id] };
+      saveSectionVisibility(next);
+      return next;
+    });
+  }, []);
+
+  const setAllSections = useCallback((value) => {
+    const next = {};
+    ALL_SECTION_IDS.forEach((id) => { next[id] = value; });
+    saveSectionVisibility(next);
+    setVisibility(next);
+  }, []);
 
   // Revenue: use uploaded data when available, otherwise hardcoded
   const activeRevenue = hasRevenue ? revenueCategories : usRevenue;
@@ -148,56 +217,109 @@ export default function Dashboard() {
   const revenueRows = buildCategorySummary(activeRevenue);
   const usExpRows = buildCategorySummary(US_EXPENSE_CATEGORIES).map((r) => ({ ...r, location: 'US' }));
   const mzExpRows = buildCategorySummary(mzCategories).map((r) => ({ ...r, location: 'MZ' }));
-  const allExpRows = [...mzExpRows, ...usExpRows]; // MZ first since it's primary
+  const allExpRows = [...mzExpRows, ...usExpRows];
 
   // ── Charts ──
-  // For revenue: use revenue-specific years if uploaded, otherwise hardcoded (FISCAL_YEAR)
   const revActualsYr = hasRevenue ? revenueCurrentYear : FISCAL_YEAR;
   const revPriorYr = hasRevenue ? revenuePriorYear : FISCAL_YEAR - 1;
-  const revBudgetYr = hasRevenue ? null : FISCAL_YEAR; // hardcoded data has budget for same year
+  const revBudgetYr = hasRevenue ? null : FISCAL_YEAR;
 
   const revenueChartData = buildMonthlyComparison(activeRevenue, MONTHS, {
     actualsYear: revActualsYr, budgetYear: revBudgetYr, priorYear: revPriorYr,
   });
 
-  // For MZ expenses: use uploaded data years
   const mzExpenseChartData = mzCategories.length > 0
     ? buildMonthlyComparison(mzCategories, MONTHS, {
         actualsYear: actualsYear, budgetYear: budgetYear, priorYear: priorYear,
       })
     : [];
 
-  // ── Timeline (full-width 2-year view) ──
+  // ── Timeline ──
   const mzTimelineData = mzCategories.length > 0
     ? buildTimelineData(mzCategories, MONTHS, {
         actualsYear: actualsYear, budgetYear: budgetYear, priorYear: priorYear,
       })
     : [];
 
-  // ── Pie data for MZ program allocation ──
+  // ── Pie data ──
   const mzPieData = mzCategories
     .map((cat) => ({ name: cat.name, value: ytdTotal([cat]) }))
     .filter((d) => d.value > 0);
 
-  // ── Expense split pie (US vs MZ) ──
   const splitPieData = [
     { name: 'Mozambique Programs', value: mzExpActual },
     { name: 'US Operations', value: usExpActual },
   ].filter((d) => d.value > 0);
 
+  // Group sections for the settings panel
+  const groups = {};
+  SECTIONS.forEach((s) => {
+    if (!groups[s.group]) groups[s.group] = [];
+    groups[s.group].push(s);
+  });
+
+  const visibleCount = ALL_SECTION_IDS.filter((id) => visibility[id]).length;
+
   return (
     <div className="dashboard">
       <div className="dashboard__header">
-        <h2>
-          <BarChart3 size={24} style={{ verticalAlign: 'middle', marginRight: 8 }} />
-          No Poor Africa — FY {year}
-        </h2>
+        <div className="dashboard__header-top">
+          <h2>
+            <BarChart3 size={24} style={{ verticalAlign: 'middle', marginRight: 8 }} />
+            No Poor Africa — FY {year}
+          </h2>
+          <button
+            className="btn btn--outline btn--settings"
+            onClick={() => setShowSettings(!showSettings)}
+          >
+            <Settings size={14} />
+            Customize ({visibleCount}/{ALL_SECTION_IDS.length})
+          </button>
+        </div>
         <p className="dashboard__subtitle">
           Financial Leadership Dashboard
           {mzMonthLabel && <> &middot; MZ data through {mzMonthLabel} {year}</>}
           {' '}&middot; US data through January {FISCAL_YEAR}
         </p>
       </div>
+
+      {/* ── Settings Panel ── */}
+      {showSettings && (
+        <div className="settings-panel">
+          <div className="settings-panel__header">
+            <h3>Dashboard Sections</h3>
+            <div className="settings-panel__actions">
+              <button className="btn btn--sm btn--outline" onClick={() => setAllSections(true)}>
+                Show All
+              </button>
+              <button className="btn btn--sm btn--outline" onClick={() => setAllSections(false)}>
+                Hide All
+              </button>
+            </div>
+          </div>
+          <div className="settings-panel__grid">
+            {Object.entries(groups).map(([groupName, items]) => (
+              <div key={groupName} className="settings-panel__group">
+                <h4 className="settings-panel__group-label">{groupName}</h4>
+                {items.map((section) => (
+                  <label key={section.id} className="settings-panel__item">
+                    <input
+                      type="checkbox"
+                      checked={visibility[section.id] !== false}
+                      onChange={() => toggleSection(section.id)}
+                    />
+                    {visibility[section.id] !== false
+                      ? <Eye size={14} className="settings-panel__icon--on" />
+                      : <EyeOff size={14} className="settings-panel__icon--off" />
+                    }
+                    <span>{section.label}</span>
+                  </label>
+                ))}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Center filter */}
       {hasData && centers.length > 1 && (
@@ -218,51 +340,61 @@ export default function Dashboard() {
       )}
 
       {/* ── KPI Cards ── */}
-      <div className="kpi-grid">
-        <KpiCard
-          title="YTD Revenue"
-          amount={revActual}
-          icon={TrendingUp}
-          type="revenue"
-          comparisons={[
-            { label: 'vs Budget', value: variance(revActual, revBudget), pct: variancePct(revActual, revBudget), favorable: revActual >= revBudget },
-            { label: 'vs Prior Year', value: variance(revActual, revPrior), pct: variancePct(revActual, revPrior), favorable: revActual >= revPrior },
-          ]}
-        />
-        <KpiCard
-          title="YTD Total Expenses"
-          amount={totalExpActual}
-          icon={TrendingDown}
-          type="expense"
-          comparisons={[
-            { label: 'vs Budget', value: variance(totalExpActual, totalExpBudget), pct: variancePct(totalExpActual, totalExpBudget), favorable: totalExpActual <= totalExpBudget },
-            { label: 'vs Prior Year', value: variance(totalExpActual, totalExpPrior), pct: variancePct(totalExpActual, totalExpPrior), favorable: totalExpActual <= totalExpPrior },
-          ]}
-        />
-        <KpiCard
-          title="YTD Net Position"
-          amount={netActual}
-          icon={DollarSign}
-          type={netActual >= 0 ? 'revenue' : 'expense'}
-          comparisons={[
-            { label: 'vs Budget', value: variance(netActual, netBudget), pct: variancePct(netActual, netBudget), favorable: netActual >= netBudget },
-            { label: 'vs Prior Year', value: variance(netActual, netPrior), pct: variancePct(netActual, netPrior), favorable: netActual >= netPrior },
-          ]}
-        />
-        <KpiCard
-          title="Annual Expense Budget"
-          amount={totalExpAnnual}
-          icon={PieChartIcon}
-          type="neutral"
-          comparisons={[
-            { label: 'MZ used', value: mzExpActual, pct: totalExpAnnual > 0 ? variancePct(mzExpActual, fullYearBudgetTotal(mzCategories) || 1) : 0 },
-            { label: 'US used', value: usExpActual, pct: variancePct(usExpActual, fullYearBudgetTotal(US_EXPENSE_CATEGORIES)) },
-          ]}
-        />
-      </div>
+      {(show('kpiRevenue') || show('kpiExpenses') || show('kpiNet') || show('kpiBudget')) && (
+        <div className="kpi-grid">
+          {show('kpiRevenue') && (
+            <KpiCard
+              title="YTD Revenue"
+              amount={revActual}
+              icon={TrendingUp}
+              type="revenue"
+              comparisons={[
+                { label: 'vs Budget', value: variance(revActual, revBudget), pct: variancePct(revActual, revBudget), favorable: revActual >= revBudget },
+                { label: 'vs Prior Year', value: variance(revActual, revPrior), pct: variancePct(revActual, revPrior), favorable: revActual >= revPrior },
+              ]}
+            />
+          )}
+          {show('kpiExpenses') && (
+            <KpiCard
+              title="YTD Total Expenses"
+              amount={totalExpActual}
+              icon={TrendingDown}
+              type="expense"
+              comparisons={[
+                { label: 'vs Budget', value: variance(totalExpActual, totalExpBudget), pct: variancePct(totalExpActual, totalExpBudget), favorable: totalExpActual <= totalExpBudget },
+                { label: 'vs Prior Year', value: variance(totalExpActual, totalExpPrior), pct: variancePct(totalExpActual, totalExpPrior), favorable: totalExpActual <= totalExpPrior },
+              ]}
+            />
+          )}
+          {show('kpiNet') && (
+            <KpiCard
+              title="YTD Net Position"
+              amount={netActual}
+              icon={DollarSign}
+              type={netActual >= 0 ? 'revenue' : 'expense'}
+              comparisons={[
+                { label: 'vs Budget', value: variance(netActual, netBudget), pct: variancePct(netActual, netBudget), favorable: netActual >= netBudget },
+                { label: 'vs Prior Year', value: variance(netActual, netPrior), pct: variancePct(netActual, netPrior), favorable: netActual >= netPrior },
+              ]}
+            />
+          )}
+          {show('kpiBudget') && (
+            <KpiCard
+              title="Annual Expense Budget"
+              amount={totalExpAnnual}
+              icon={PieChartIcon}
+              type="neutral"
+              comparisons={[
+                { label: 'MZ used', value: mzExpActual, pct: totalExpAnnual > 0 ? variancePct(mzExpActual, fullYearBudgetTotal(mzCategories) || 1) : 0 },
+                { label: 'US used', value: usExpActual, pct: variancePct(usExpActual, fullYearBudgetTotal(US_EXPENSE_CATEGORIES)) },
+              ]}
+            />
+          )}
+        </div>
+      )}
 
       {/* ── Full-width Timeline ── */}
-      {mzTimelineData.length > 0 && (
+      {show('timeline') && mzTimelineData.length > 0 && (
         <TimelineChart
           title="MZ Expense Timeline: Prior Year Actuals → Current Actuals → Forward Budget"
           data={mzTimelineData}
@@ -272,25 +404,27 @@ export default function Dashboard() {
         />
       )}
 
-      {/* ── Expense Split ── */}
-      {splitPieData.length > 0 && (
+      {/* ── Expense Split + MZ Breakdown Pies ── */}
+      {(show('pieExpenseSplit') || show('pieMzBreakdown')) && splitPieData.length > 0 && (
         <div className="chart-grid">
-          <div className="chart-container">
-            <h3 className="chart__title">Expense Split: Mozambique vs US (YTD)</h3>
-            <ResponsiveContainer width="100%" height={280}>
-              <PieChart>
-                <Pie data={splitPieData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={100}
-                  label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`} labelLine>
-                  <Cell fill="#2563eb" />
-                  <Cell fill="#94a3b8" />
-                </Pie>
-                <Tooltip formatter={(value) => format(value)} />
-                <Legend />
-              </PieChart>
-            </ResponsiveContainer>
-          </div>
+          {show('pieExpenseSplit') && (
+            <div className="chart-container">
+              <h3 className="chart__title">Expense Split: Mozambique vs US (YTD)</h3>
+              <ResponsiveContainer width="100%" height={280}>
+                <PieChart>
+                  <Pie data={splitPieData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={100}
+                    label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`} labelLine>
+                    <Cell fill="#2563eb" />
+                    <Cell fill="#94a3b8" />
+                  </Pie>
+                  <Tooltip formatter={(value) => format(value)} />
+                  <Legend />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+          )}
 
-          {mzPieData.length > 0 && (
+          {show('pieMzBreakdown') && mzPieData.length > 0 && (
             <div className="chart-container">
               <h3 className="chart__title">Mozambique Program Breakdown (YTD)</h3>
               <ResponsiveContainer width="100%" height={280}>
@@ -310,42 +444,50 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* ── Charts ── */}
-      <div className="chart-grid">
-        <MonthlyChart
-          title="Revenue: Actual vs Prior Year"
-          data={revenueChartData}
-          actualsYear={revActualsYr}
-          budgetYear={revBudgetYr}
-          priorYear={revPriorYr}
-        />
-        {mzExpenseChartData.length > 0 && (
-          <MonthlyChart
-            title="MZ Expenses: Actual vs Prior Year"
-            data={mzExpenseChartData}
-            actualsYear={actualsYear}
-            budgetYear={budgetYear}
-            priorYear={priorYear}
-          />
-        )}
-      </div>
+      {/* ── Bar Charts ── */}
+      {(show('chartRevenue') || show('chartMzExpense')) && (
+        <div className="chart-grid">
+          {show('chartRevenue') && (
+            <MonthlyChart
+              title="Revenue: Actual vs Prior Year"
+              data={revenueChartData}
+              actualsYear={revActualsYr}
+              budgetYear={revBudgetYr}
+              priorYear={revPriorYr}
+            />
+          )}
+          {show('chartMzExpense') && mzExpenseChartData.length > 0 && (
+            <MonthlyChart
+              title="MZ Expenses: Actual vs Prior Year"
+              data={mzExpenseChartData}
+              actualsYear={actualsYear}
+              budgetYear={budgetYear}
+              priorYear={priorYear}
+            />
+          )}
+        </div>
+      )}
 
       {/* ── Expense Table ── */}
-      <FinancialTable
-        title="All Expenses by Category"
-        rows={allExpRows}
-        isRevenue={false}
-      />
+      {show('tableExpenses') && (
+        <FinancialTable
+          title="All Expenses by Category"
+          rows={allExpRows}
+          isRevenue={false}
+        />
+      )}
 
       {/* ── Revenue Table ── */}
-      <FinancialTable
-        title={hasRevenue ? 'Revenue Detail' : 'Revenue Detail (US-based)'}
-        rows={revenueRows}
-        isRevenue
-      />
+      {show('tableRevenue') && (
+        <FinancialTable
+          title={hasRevenue ? 'Revenue Detail' : 'Revenue Detail (US-based)'}
+          rows={revenueRows}
+          isRevenue
+        />
+      )}
 
-      {/* ── Budget Progress ── */}
-      {mzCategories.length > 0 && (
+      {/* ── Budget Progress: MZ ── */}
+      {show('budgetMz') && mzCategories.length > 0 && (
         <div className="section">
           <h3 className="section__title">Annual Budget Utilization — Mozambique Programs</h3>
           {mzCategories.map((cat) => {
@@ -364,44 +506,52 @@ export default function Dashboard() {
         </div>
       )}
 
-      <div className="section">
-        <h3 className="section__title">Annual Budget Utilization — US Operations</h3>
-        {US_EXPENSE_CATEGORIES.map((cat) => {
-          const rows = buildCategorySummary([cat]);
-          return (
-            <BudgetProgressBar
-              key={cat.id}
-              label={cat.name}
-              actual={rows[0].ytdActual}
-              budget={cat.budgetAnnual}
-              priorYear={rows[0].fullPrior}
-              location="US"
-            />
-          );
-        })}
-      </div>
+      {/* ── Budget Progress: US ── */}
+      {show('budgetUs') && (
+        <div className="section">
+          <h3 className="section__title">Annual Budget Utilization — US Operations</h3>
+          {US_EXPENSE_CATEGORIES.map((cat) => {
+            const rows = buildCategorySummary([cat]);
+            return (
+              <BudgetProgressBar
+                key={cat.id}
+                label={cat.name}
+                actual={rows[0].ytdActual}
+                budget={cat.budgetAnnual}
+                priorYear={rows[0].fullPrior}
+                location="US"
+              />
+            );
+          })}
+        </div>
+      )}
 
-      <div className="section">
-        <h3 className="section__title">Annual Budget Utilization — Revenue</h3>
-        {activeRevenue.map((cat) => {
-          const rows = buildCategorySummary([cat]);
-          return (
-            <BudgetProgressBar
-              key={cat.id}
-              label={cat.name}
-              actual={rows[0].ytdActual}
-              budget={cat.budgetAnnual}
-              priorYear={rows[0].fullPrior}
-            />
-          );
-        })}
-      </div>
+      {/* ── Budget Progress: Revenue ── */}
+      {show('budgetRevenue') && (
+        <div className="section">
+          <h3 className="section__title">Annual Budget Utilization — Revenue</h3>
+          {activeRevenue.map((cat) => {
+            const rows = buildCategorySummary([cat]);
+            return (
+              <BudgetProgressBar
+                key={cat.id}
+                label={cat.name}
+                actual={rows[0].ytdActual}
+                budget={cat.budgetAnnual}
+                priorYear={rows[0].fullPrior}
+              />
+            );
+          })}
+        </div>
+      )}
 
       {/* ── Leadership ── */}
-      <div className="leadership-grid">
-        <LeadershipList title="Mozambique Leadership" members={mzLeadership} />
-        <LeadershipList title="US Leadership" members={usLeadership} />
-      </div>
+      {show('leadership') && (
+        <div className="leadership-grid">
+          <LeadershipList title="Mozambique Leadership" members={mzLeadership} />
+          <LeadershipList title="US Leadership" members={usLeadership} />
+        </div>
+      )}
     </div>
   );
 }
