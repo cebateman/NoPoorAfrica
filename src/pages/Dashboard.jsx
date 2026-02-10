@@ -210,65 +210,70 @@ export default function Dashboard() {
   const monthlyExpDetail = reviewMonthIdx >= 0 ? buildMonthlyCategoryDetail(expenseCategories, reviewMonthIdx) : [];
 
   // ── Budget Bridge ──
-  // Build bridge rows: each category's variance sorted by absolute impact
   const bridgeData = useMemo(() => {
     if (reviewMonthIdx < 0 || mMonthBudgetTotal === 0) return null;
 
     const totalVar = mMonthExpTotal - mMonthBudgetTotal;
-    const overBudget = totalVar > 0;
-
-    // Get categories with non-zero variances (only those with actual data)
     const rows = monthlyExpDetail
       .filter((r) => r.budgetVar !== null && r.budgetVar !== 0)
-      .map((r) => ({
-        name: r.name,
-        variance: r.budgetVar,
-        budget: r.budget,
-        actual: r.actual,
-      }))
+      .map((r) => ({ name: r.name, variance: r.budgetVar }))
       .sort((a, b) => Math.abs(b.variance) - Math.abs(a.variance));
 
-    // Split into unfavorable (over budget) and favorable (under budget)
     const unfavorable = rows.filter((r) => r.variance > 0);
     const favorable = rows.filter((r) => r.variance < 0);
 
-    // Build narrative sentence
     const fmtAbs = (v) => format(Math.abs(v));
-    const fmtVar = (r) => `${r.name} (${r.variance > 0 ? '+' : ''}${format(r.variance)} vs budget)`;
+    const fmtVar = (r, tag) => `${r.name} (${r.variance > 0 ? '+' : ''}${format(r.variance)} vs ${tag})`;
 
     let narrative = '';
     if (totalVar === 0) {
       narrative = `In ${reviewMonthLabel}, total expenses came in exactly on budget at ${format(mMonthBudgetTotal)}.`;
     } else {
-      const direction = overBudget ? 'above' : 'below';
-      const drivers = overBudget ? unfavorable : favorable;
-      const offsets = overBudget ? favorable : unfavorable;
-
-      // Top drivers (up to 3)
-      const topDrivers = drivers.slice(0, 3).map(fmtVar);
-      // Top offsets (up to 2)
-      const topOffsets = offsets.slice(0, 2).map(fmtVar);
+      const direction = totalVar > 0 ? 'above' : 'below';
+      const drivers = (totalVar > 0 ? unfavorable : favorable).slice(0, 3).map((r) => fmtVar(r, 'budget'));
+      const offsets = (totalVar > 0 ? favorable : unfavorable).slice(0, 2).map((r) => fmtVar(r, 'budget'));
 
       narrative = `In ${reviewMonthLabel}, expenses came in ${fmtAbs(totalVar)} ${direction} budget`;
-
-      if (topDrivers.length > 0) {
-        narrative += `, driven by ${topDrivers.join(', ')}`;
-      }
-      if (topOffsets.length > 0) {
-        narrative += `, partially offset by ${topOffsets.join(' and ')}`;
-      }
+      if (drivers.length > 0) narrative += `, driven by ${drivers.join(', ')}`;
+      if (offsets.length > 0) narrative += `, partially offset by ${offsets.join(' and ')}`;
       narrative += '.';
     }
 
-    return {
-      budgetTotal: mMonthBudgetTotal,
-      actualTotal: mMonthExpTotal,
-      totalVar,
-      overBudget,
-      rows,
-      narrative,
-    };
+    return { baseTotal: mMonthBudgetTotal, actualTotal: mMonthExpTotal, totalVar, rows, narrative };
   }, [monthlyExpDetail, reviewMonthIdx, mMonthBudgetTotal, mMonthExpTotal, reviewMonthLabel, format]);
+
+  // ── YoY Bridge ──
+  const yoyBridgeData = useMemo(() => {
+    if (reviewMonthIdx < 0 || mMonthPriorTotal === 0) return null;
+
+    const totalVar = mMonthExpTotal - mMonthPriorTotal;
+    const rows = monthlyExpDetail
+      .filter((r) => r.priorVar !== null && r.priorVar !== 0)
+      .map((r) => ({ name: r.name, variance: r.priorVar }))
+      .sort((a, b) => Math.abs(b.variance) - Math.abs(a.variance));
+
+    const increases = rows.filter((r) => r.variance > 0);
+    const decreases = rows.filter((r) => r.variance < 0);
+
+    const fmtAbs = (v) => format(Math.abs(v));
+    const fmtVar = (r) => `${r.name} (${r.variance > 0 ? '+' : ''}${format(r.variance)} YoY)`;
+
+    let narrative = '';
+    if (totalVar === 0) {
+      narrative = `Year-over-year, ${reviewMonthLabel} expenses were flat at ${format(mMonthPriorTotal)}.`;
+    } else {
+      const direction = totalVar > 0 ? 'higher' : 'lower';
+      const drivers = (totalVar > 0 ? increases : decreases).slice(0, 3).map(fmtVar);
+      const offsets = (totalVar > 0 ? decreases : increases).slice(0, 2).map(fmtVar);
+
+      narrative = `Year-over-year, ${reviewMonthLabel} expenses were ${fmtAbs(totalVar)} ${direction} than ${reviewPriorYr}`;
+      if (drivers.length > 0) narrative += `, led by ${drivers.join(', ')}`;
+      if (offsets.length > 0) narrative += `, partially offset by ${offsets.join(' and ')}`;
+      narrative += '.';
+    }
+
+    return { baseTotal: mMonthPriorTotal, actualTotal: mMonthExpTotal, totalVar, rows, narrative };
+  }, [monthlyExpDetail, reviewMonthIdx, mMonthPriorTotal, mMonthExpTotal, reviewMonthLabel, reviewPriorYr, format]);
 
   // Available months for the selector
   const availableMonths = [];
@@ -556,46 +561,96 @@ export default function Dashboard() {
             </div>
           )}
 
-          {/* Budget Bridge */}
-          {show('monthlyBridge') && bridgeData && (
+          {/* Budget & YoY Bridges */}
+          {show('monthlyBridge') && (bridgeData || yoyBridgeData) && (
             <div className="bridge" style={{ marginTop: 16 }}>
               <h3 className="fin-table__title">
-                {reviewMonthLabel} {reviewActualsYear} — Budget Bridge
+                {reviewMonthLabel} {reviewActualsYear} — Expense Bridges
               </h3>
-              <p className="bridge__narrative">{bridgeData.narrative}</p>
-              <div className="fin-table-scroll">
-                <table className="fin-table bridge__table">
-                  <thead>
-                    <tr>
-                      <th className="fin-table__category">Item</th>
-                      <th className="bridge__amount">Amount</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {/* Budget starting point */}
-                    <tr className="bridge__row bridge__row--anchor">
-                      <td className="fin-table__category"><strong>Budgeted Expenses</strong></td>
-                      <td className="bridge__amount"><strong>{format(bridgeData.budgetTotal)}</strong></td>
-                    </tr>
-                    {/* Category variances */}
-                    {bridgeData.rows.map((row) => (
-                      <tr
-                        key={row.name}
-                        className={`bridge__row ${row.variance > 0 ? 'bridge__row--over' : 'bridge__row--under'}`}
-                      >
-                        <td className="fin-table__category bridge__indent">{row.name}</td>
-                        <td className={`bridge__amount ${row.variance > 0 ? 'unfavorable' : 'favorable'}`}>
-                          {row.variance > 0 ? '+' : ''}{format(row.variance)}
-                        </td>
-                      </tr>
-                    ))}
-                    {/* Actual landing point */}
-                    <tr className="bridge__row bridge__row--anchor bridge__row--total">
-                      <td className="fin-table__category"><strong>Actual Expenses</strong></td>
-                      <td className="bridge__amount"><strong>{format(bridgeData.actualTotal)}</strong></td>
-                    </tr>
-                  </tbody>
-                </table>
+
+              {/* Combined narrative */}
+              <div className="bridge__narrative">
+                {bridgeData && <p>{bridgeData.narrative}</p>}
+                {yoyBridgeData && <p>{yoyBridgeData.narrative}</p>}
+              </div>
+
+              {/* Side-by-side tables */}
+              <div className="bridge__grid">
+                {/* Budget Bridge */}
+                {bridgeData && (
+                  <div>
+                    <h4 className="bridge__subtitle">vs Budget</h4>
+                    <div className="fin-table-scroll">
+                      <table className="fin-table bridge__table">
+                        <thead>
+                          <tr>
+                            <th className="fin-table__category">Item</th>
+                            <th className="bridge__amount">Amount</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          <tr className="bridge__row bridge__row--anchor">
+                            <td className="fin-table__category"><strong>Budgeted Expenses</strong></td>
+                            <td className="bridge__amount"><strong>{format(bridgeData.baseTotal)}</strong></td>
+                          </tr>
+                          {bridgeData.rows.map((row) => (
+                            <tr
+                              key={row.name}
+                              className={`bridge__row ${row.variance > 0 ? 'bridge__row--over' : 'bridge__row--under'}`}
+                            >
+                              <td className="fin-table__category bridge__indent">{row.name}</td>
+                              <td className={`bridge__amount ${row.variance > 0 ? 'unfavorable' : 'favorable'}`}>
+                                {row.variance > 0 ? '+' : ''}{format(row.variance)}
+                              </td>
+                            </tr>
+                          ))}
+                          <tr className="bridge__row bridge__row--anchor bridge__row--total">
+                            <td className="fin-table__category"><strong>Actual Expenses</strong></td>
+                            <td className="bridge__amount"><strong>{format(bridgeData.actualTotal)}</strong></td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+
+                {/* YoY Bridge */}
+                {yoyBridgeData && (
+                  <div>
+                    <h4 className="bridge__subtitle">vs Prior Year ({reviewPriorYr})</h4>
+                    <div className="fin-table-scroll">
+                      <table className="fin-table bridge__table">
+                        <thead>
+                          <tr>
+                            <th className="fin-table__category">Item</th>
+                            <th className="bridge__amount">Amount</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          <tr className="bridge__row bridge__row--anchor">
+                            <td className="fin-table__category"><strong>{reviewMonthLabel} {reviewPriorYr} Expenses</strong></td>
+                            <td className="bridge__amount"><strong>{format(yoyBridgeData.baseTotal)}</strong></td>
+                          </tr>
+                          {yoyBridgeData.rows.map((row) => (
+                            <tr
+                              key={row.name}
+                              className={`bridge__row ${row.variance > 0 ? 'bridge__row--over' : 'bridge__row--under'}`}
+                            >
+                              <td className="fin-table__category bridge__indent">{row.name}</td>
+                              <td className={`bridge__amount ${row.variance > 0 ? 'unfavorable' : 'favorable'}`}>
+                                {row.variance > 0 ? '+' : ''}{format(row.variance)}
+                              </td>
+                            </tr>
+                          ))}
+                          <tr className="bridge__row bridge__row--anchor bridge__row--total">
+                            <td className="fin-table__category"><strong>Actual Expenses</strong></td>
+                            <td className="bridge__amount"><strong>{format(yoyBridgeData.actualTotal)}</strong></td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           )}

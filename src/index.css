@@ -1035,8 +1035,38 @@ body {
   border-left: 3px solid var(--color-accent);
 }
 
+.bridge__narrative p {
+  margin: 0;
+}
+
+.bridge__narrative p + p {
+  margin-top: 8px;
+}
+
+.bridge__grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+  align-items: start;
+}
+
+@media (max-width: 768px) {
+  .bridge__grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.bridge__subtitle {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 8px;
+}
+
 .bridge__table {
-  max-width: 480px;
+  width: 100%;
 }
 
 .bridge__amount {
