@@ -1,0 +1,579 @@
+/* ═══════════════════════════════════════════════
+   No Poor Africa — Financial Leadership Dashboard
+   ═══════════════════════════════════════════════ */
+
+:root {
+  --color-bg: #f1f5f9;
+  --color-surface: #ffffff;
+  --color-text: #1e293b;
+  --color-text-secondary: #64748b;
+  --color-border: #e2e8f0;
+  --color-primary: #2563eb;
+  --color-primary-light: #dbeafe;
+  --color-favorable: #059669;
+  --color-favorable-bg: #ecfdf5;
+  --color-unfavorable: #dc2626;
+  --color-unfavorable-bg: #fef2f2;
+  --color-neutral: #64748b;
+  --color-accent: #7c3aed;
+  --radius: 8px;
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+  --shadow: 0 1px 3px rgba(0, 0, 0, 0.1), 0 1px 2px rgba(0, 0, 0, 0.06);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--color-text);
+  background: var(--color-bg);
+  min-width: 320px;
+}
+
+/* ── Layout ── */
+.layout {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.header {
+  background: var(--color-surface);
+  border-bottom: 1px solid var(--color-border);
+  padding: 12px 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  box-shadow: var(--shadow-sm);
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+
+.header-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: var(--color-primary);
+}
+
+.header-brand h1 {
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1.2;
+  color: var(--color-text);
+}
+
+.header-subtitle {
+  font-size: 12px;
+  color: var(--color-text-secondary);
+}
+
+.nav {
+  display: flex;
+  gap: 4px;
+}
+
+.nav-link {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border-radius: var(--radius);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--color-text-secondary);
+  text-decoration: none;
+  transition: all 0.15s ease;
+}
+
+.nav-link:hover {
+  background: var(--color-bg);
+  color: var(--color-text);
+}
+
+.nav-link--active {
+  background: var(--color-primary-light);
+  color: var(--color-primary);
+}
+
+.main {
+  flex: 1;
+  padding: 24px;
+  max-width: 1400px;
+  width: 100%;
+  margin: 0 auto;
+}
+
+.footer {
+  text-align: center;
+  padding: 16px 24px;
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  border-top: 1px solid var(--color-border);
+  background: var(--color-surface);
+}
+
+/* ── Dashboard ── */
+.dashboard {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.dashboard__header h2 {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--color-text);
+}
+
+.dashboard__subtitle {
+  font-size: 13px;
+  color: var(--color-text-secondary);
+  margin-top: 4px;
+}
+
+.dashboard__note {
+  font-style: italic;
+  font-size: 12px;
+}
+
+/* ── KPI Cards ── */
+.kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 16px;
+}
+
+.kpi-card {
+  background: var(--color-surface);
+  border-radius: var(--radius);
+  padding: 20px;
+  box-shadow: var(--shadow);
+  border-left: 4px solid var(--color-neutral);
+}
+
+.kpi-card--revenue {
+  border-left-color: var(--color-favorable);
+}
+
+.kpi-card--expense {
+  border-left-color: var(--color-primary);
+}
+
+.kpi-card--neutral {
+  border-left-color: var(--color-accent);
+}
+
+.kpi-card__header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.kpi-card__icon {
+  color: var(--color-text-secondary);
+}
+
+.kpi-card__title {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--color-text-secondary);
+}
+
+.kpi-card__amount {
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--color-text);
+  margin-bottom: 12px;
+}
+
+.kpi-card__comparisons {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.kpi-card__comparison {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+}
+
+.kpi-card__label {
+  color: var(--color-text-secondary);
+}
+
+.kpi-card__variance {
+  font-weight: 600;
+}
+
+.kpi-card__variance--favorable {
+  color: var(--color-favorable);
+}
+
+.kpi-card__variance--unfavorable {
+  color: var(--color-unfavorable);
+}
+
+/* ── Charts ── */
+.chart-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(450px, 1fr));
+  gap: 16px;
+}
+
+.chart-container {
+  background: var(--color-surface);
+  border-radius: var(--radius);
+  padding: 20px;
+  box-shadow: var(--shadow);
+}
+
+.chart__title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-text);
+  margin-bottom: 16px;
+}
+
+/* ── Financial Table ── */
+.fin-table-container {
+  background: var(--color-surface);
+  border-radius: var(--radius);
+  padding: 20px;
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}
+
+.fin-table__title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-text);
+  margin-bottom: 12px;
+}
+
+.fin-table-scroll {
+  overflow-x: auto;
+}
+
+.fin-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.fin-table th {
+  background: var(--color-bg);
+  padding: 10px 12px;
+  text-align: right;
+  font-weight: 600;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  color: var(--color-text-secondary);
+  border-bottom: 2px solid var(--color-border);
+}
+
+.fin-table th.fin-table__category {
+  text-align: left;
+  min-width: 200px;
+}
+
+.fin-table td {
+  padding: 10px 12px;
+  text-align: right;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.fin-table td.fin-table__category {
+  text-align: left;
+  font-weight: 500;
+}
+
+.fin-table tbody tr:hover {
+  background: #f8fafc;
+}
+
+.fin-table__total-row td {
+  border-top: 2px solid var(--color-text);
+  border-bottom: none;
+  background: var(--color-bg);
+}
+
+.favorable {
+  color: var(--color-favorable);
+  font-weight: 600;
+}
+
+.unfavorable {
+  color: var(--color-unfavorable);
+  font-weight: 600;
+}
+
+/* ── Budget Progress Bars ── */
+.section {
+  background: var(--color-surface);
+  border-radius: var(--radius);
+  padding: 20px;
+  box-shadow: var(--shadow);
+}
+
+.section__title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-text);
+  margin-bottom: 16px;
+}
+
+.progress-bar-row {
+  display: grid;
+  grid-template-columns: 200px 1fr 240px;
+  gap: 12px;
+  align-items: center;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.progress-bar-row:last-child {
+  border-bottom: none;
+}
+
+.progress-bar__label {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--color-text);
+}
+
+.progress-bar__track {
+  position: relative;
+  height: 20px;
+  background: var(--color-bg);
+  border-radius: 10px;
+  overflow: visible;
+}
+
+.progress-bar__fill {
+  height: 100%;
+  background: var(--color-primary);
+  border-radius: 10px;
+  transition: width 0.4s ease;
+}
+
+.progress-bar__fill--over {
+  background: var(--color-unfavorable);
+}
+
+.progress-bar__marker {
+  position: absolute;
+  top: -3px;
+  width: 2px;
+  height: 26px;
+  z-index: 1;
+}
+
+.progress-bar__marker--expected {
+  background: var(--color-text);
+}
+
+.progress-bar__marker--prior {
+  background: var(--color-accent);
+  opacity: 0.6;
+}
+
+.progress-bar__values {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--color-text);
+}
+
+.progress-bar__of {
+  color: var(--color-text-secondary);
+}
+
+.progress-bar__pct {
+  font-weight: 600;
+  color: var(--color-primary);
+}
+
+/* ── Leadership List ── */
+.leadership-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 16px;
+}
+
+.leadership-list {
+  background: var(--color-surface);
+  border-radius: var(--radius);
+  padding: 20px;
+  box-shadow: var(--shadow);
+}
+
+.leadership-list__title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-text);
+  margin-bottom: 12px;
+}
+
+.leadership-list ul {
+  list-style: none;
+}
+
+.leadership-list__item {
+  display: flex;
+  justify-content: space-between;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--color-border);
+  font-size: 13px;
+}
+
+.leadership-list__item:last-child {
+  border-bottom: none;
+}
+
+.leadership-list__role {
+  color: var(--color-text-secondary);
+}
+
+.leadership-list__person {
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+/* ── Entity Cards (Executive Overview) ── */
+.entity-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+  gap: 16px;
+}
+
+.entity-card {
+  background: var(--color-surface);
+  border-radius: var(--radius);
+  padding: 20px;
+  box-shadow: var(--shadow);
+}
+
+.entity-card__header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 2px solid var(--color-border);
+}
+
+.entity-card__header h3 {
+  flex: 1;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.entity-card__link {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--color-primary);
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.entity-card__link:hover {
+  text-decoration: underline;
+}
+
+.entity-card__row {
+  display: flex;
+  justify-content: space-between;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--color-border);
+  font-size: 13px;
+}
+
+.entity-card__row:last-child {
+  border-bottom: none;
+}
+
+.entity-card__row--highlight {
+  background: var(--color-bg);
+  margin: 0 -20px;
+  padding: 10px 20px;
+  font-weight: 600;
+}
+
+.entity-card__value {
+  font-weight: 600;
+}
+
+/* ── Responsive ── */
+@media (max-width: 768px) {
+  .header {
+    padding: 10px 16px;
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .nav {
+    width: 100%;
+    overflow-x: auto;
+  }
+
+  .main {
+    padding: 16px;
+  }
+
+  .kpi-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .chart-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .entity-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .progress-bar-row {
+    grid-template-columns: 1fr;
+    gap: 4px;
+  }
+
+  .fin-table {
+    font-size: 12px;
+  }
+}
+
+@media (max-width: 480px) {
+  .kpi-card__amount {
+    font-size: 22px;
+  }
+
+  .header-brand h1 {
+    font-size: 16px;
+  }
+}
