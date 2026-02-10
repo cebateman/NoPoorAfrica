@@ -204,6 +204,74 @@ export function getDataYears(rows) {
 }
 
 /**
+ * Parse a simple revenue CSV into structured rows.
+ * Columns: Source/Donor, Date, Month, Year, Category, Amount (USD)
+ */
+export function parseRevenueCSV(text) {
+  const rawRows = parseCSV(text);
+
+  return rawRows
+    .map((row) => {
+      const headers = Object.keys(row);
+      // Find amount column (contains "Amount" or "USD")
+      const amountKey =
+        headers.find((h) => h.includes('USD')) ||
+        headers.find((h) => h.toLowerCase().includes('amount')) ||
+        '';
+
+      return {
+        source: row['Source'] || row['Donor'] || row['Source/Donor'] || '',
+        date: row['Date'] || '',
+        month: parseInt(row['Month'], 10) || 0,
+        year: parseInt(row['Year'], 10) || 0,
+        category: (row['Category'] || row['Purpose'] || row['Type'] || 'Uncategorized').trim(),
+        amountUSD: parseUSD(amountKey ? row[amountKey] : ''),
+      };
+    })
+    .filter((r) => r.month > 0 && r.year > 0);
+}
+
+/**
+ * Build dashboard-compatible revenue categories from revenue rows.
+ * Groups by category, aggregates by month, auto-splits by year.
+ */
+export function buildRevenueCategories(currentYearRows, priorYearRows) {
+  const sourceRows = currentYearRows.length > 0 ? currentYearRows : [];
+  const categories = [...new Set(sourceRows.map((r) => r.category))].sort();
+
+  return categories.map((cat) => {
+    const catCurrent = currentYearRows.filter((r) => r.category === cat);
+    const catPrior = priorYearRows.filter((r) => r.category === cat);
+
+    const actualMonthly = [];
+    const priorYearMonthly = [];
+
+    for (let m = 1; m <= 12; m++) {
+      const currentSum = catCurrent
+        .filter((r) => r.month === m)
+        .reduce((s, r) => s + r.amountUSD, 0);
+      const priorSum = catPrior
+        .filter((r) => r.month === m)
+        .reduce((s, r) => s + r.amountUSD, 0);
+
+      if (catCurrent.some((r) => r.month === m)) {
+        actualMonthly.push(currentSum);
+      }
+      priorYearMonthly.push(priorSum);
+    }
+
+    return {
+      id: cat.toLowerCase().replace(/[^a-z0-9]+/g, '_'),
+      name: cat,
+      budgetAnnual: 0,
+      budgetMonthly: Array(12).fill(0),
+      actualMonthly,
+      priorYearMonthly,
+    };
+  });
+}
+
+/**
  * Build dashboard-compatible category data from aggregated data.
  * Converts to the format expected by existing dashboard components.
  */

@@ -1,9 +1,11 @@
-import { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 import {
   parseDataCSV,
   parseMappingCSV,
+  parseRevenueCSV,
   applyMapping,
   buildDashboardCategories,
+  buildRevenueCategories,
   uniqueValues,
   getDataMonths,
   getDataYears,
@@ -15,7 +17,7 @@ const STORAGE_KEYS = {
   mapping: 'npa_mapping_csv',
   budget: 'npa_budget_csv',
   actuals: 'npa_actuals_csv',
-  priorYear: 'npa_prior_year_csv',
+  revenue: 'npa_revenue_csv',
 };
 
 /**
@@ -45,18 +47,23 @@ export function DataProvider({ children }) {
   const [mappingCSV, setMappingCSV] = useState(() => loadStored(STORAGE_KEYS.mapping));
   const [budgetCSV, setBudgetCSV] = useState(() => loadStored(STORAGE_KEYS.budget));
   const [actualsCSV, setActualsCSV] = useState(() => loadStored(STORAGE_KEYS.actuals));
-  const [priorYearCSV, setPriorYearCSV] = useState(() => loadStored(STORAGE_KEYS.priorYear));
+  const [revenueCSV, setRevenueCSV] = useState(() => loadStored(STORAGE_KEYS.revenue));
+
+  // Clean up old priorYear key from localStorage
+  useEffect(() => {
+    try { localStorage.removeItem('npa_prior_year_csv'); } catch { /* noop */ }
+  }, []);
 
   // Persist to localStorage on change
   useEffect(() => { saveStored(STORAGE_KEYS.mapping, mappingCSV); }, [mappingCSV]);
   useEffect(() => { saveStored(STORAGE_KEYS.budget, budgetCSV); }, [budgetCSV]);
   useEffect(() => { saveStored(STORAGE_KEYS.actuals, actualsCSV); }, [actualsCSV]);
-  useEffect(() => { saveStored(STORAGE_KEYS.priorYear, priorYearCSV); }, [priorYearCSV]);
+  useEffect(() => { saveStored(STORAGE_KEYS.revenue, revenueCSV); }, [revenueCSV]);
 
   // Parse mapping
   const mapping = mappingCSV ? parseMappingCSV(mappingCSV) : {};
 
-  // Parse data files and apply mapping
+  // Parse expense data files and apply mapping
   const parseAndMap = useCallback(
     (csv) => {
       if (!csv) return [];
@@ -67,20 +74,66 @@ export function DataProvider({ children }) {
   );
 
   const budgetRows = parseAndMap(budgetCSV);
-  const actualsRows = parseAndMap(actualsCSV);
-  const priorYearRows = parseAndMap(priorYearCSV);
+  const allActualsRows = parseAndMap(actualsCSV);
+
+  // Parse revenue data
+  const allRevenueRows = useMemo(() => {
+    if (!revenueCSV) return [];
+    return parseRevenueCSV(revenueCSV);
+  }, [revenueCSV]);
+
+  // Auto-split actuals by year: most recent year = current, year before = prior
+  const { actualsRows, priorYearRows, actualsYears } = useMemo(() => {
+    if (allActualsRows.length === 0) {
+      return { actualsRows: [], priorYearRows: [], actualsYears: [] };
+    }
+
+    const years = [...new Set(allActualsRows.map((r) => r.year))].sort((a, b) => a - b);
+    const maxYear = years[years.length - 1];
+    const priorYear = years.length > 1 ? years[years.length - 2] : null;
+
+    return {
+      actualsRows: allActualsRows.filter((r) => r.year === maxYear),
+      priorYearRows: priorYear ? allActualsRows.filter((r) => r.year === priorYear) : [],
+      actualsYears: years,
+    };
+  }, [allActualsRows]);
+
+  // Auto-split revenue by year
+  const { revenueCurrentRows, revenuePriorRows, revenueYears } = useMemo(() => {
+    if (allRevenueRows.length === 0) {
+      return { revenueCurrentRows: [], revenuePriorRows: [], revenueYears: [] };
+    }
+
+    const years = [...new Set(allRevenueRows.map((r) => r.year))].sort((a, b) => a - b);
+    const maxYear = years[years.length - 1];
+    const priorYear = years.length > 1 ? years[years.length - 2] : null;
+
+    return {
+      revenueCurrentRows: allRevenueRows.filter((r) => r.year === maxYear),
+      revenuePriorRows: priorYear ? allRevenueRows.filter((r) => r.year === priorYear) : [],
+      revenueYears: years,
+    };
+  }, [allRevenueRows]);
+
+  // Build revenue categories from uploaded data
+  const revenueCategories = useMemo(
+    () => buildRevenueCategories(revenueCurrentRows, revenuePriorRows),
+    [revenueCurrentRows, revenuePriorRows],
+  );
 
   // Determine what data is available
   const hasMapping = Object.keys(mapping).length > 0;
   const hasBudget = budgetRows.length > 0;
   const hasActuals = actualsRows.length > 0;
   const hasPriorYear = priorYearRows.length > 0;
+  const hasRevenue = allRevenueRows.length > 0;
   const hasData = hasBudget || hasActuals;
 
   // Get metadata from data
-  const allRows = [...budgetRows, ...actualsRows, ...priorYearRows];
+  const allRows = [...budgetRows, ...allActualsRows];
   const centers = uniqueValues(allRows, 'centerLocation');
-  const dataYears = getDataYears(allRows);
+  const dataYears = actualsYears.length > 0 ? actualsYears : getDataYears(allRows);
   const dataMonths = getDataMonths(hasActuals ? actualsRows : budgetRows);
 
   // Determine current month index (last month with actual data)
@@ -110,20 +163,20 @@ export function DataProvider({ children }) {
   const uploadMapping = useCallback((text) => setMappingCSV(text), []);
   const uploadBudget = useCallback((text) => setBudgetCSV(text), []);
   const uploadActuals = useCallback((text) => setActualsCSV(text), []);
-  const uploadPriorYear = useCallback((text) => setPriorYearCSV(text), []);
+  const uploadRevenue = useCallback((text) => setRevenueCSV(text), []);
 
   const clearAll = useCallback(() => {
     setMappingCSV('');
     setBudgetCSV('');
     setActualsCSV('');
-    setPriorYearCSV('');
+    setRevenueCSV('');
     Object.values(STORAGE_KEYS).forEach((k) => {
       try { localStorage.removeItem(k); } catch { /* noop */ }
     });
   }, []);
 
   const clearFile = useCallback((type) => {
-    const setters = { mapping: setMappingCSV, budget: setBudgetCSV, actuals: setActualsCSV, priorYear: setPriorYearCSV };
+    const setters = { mapping: setMappingCSV, budget: setBudgetCSV, actuals: setActualsCSV, revenue: setRevenueCSV };
     if (setters[type]) {
       setters[type]('');
       try { localStorage.removeItem(STORAGE_KEYS[type]); } catch { /* noop */ }
@@ -136,6 +189,7 @@ export function DataProvider({ children }) {
     hasBudget,
     hasActuals,
     hasPriorYear,
+    hasRevenue,
     hasData,
     mapping,
     budgetRows,
@@ -147,18 +201,27 @@ export function DataProvider({ children }) {
     currentMonthIndex,
     allCategories,
     getCategoriesForCenter,
+    actualsYears,
+    revenueYears,
+    revenueCategories,
+    revenueCurrentRows,
+    revenuePriorRows,
 
     // Raw CSV text (for showing file info)
     mappingCSV,
     budgetCSV,
     actualsCSV,
-    priorYearCSV,
+    revenueCSV,
+
+    // Row counts for the full (unsplit) data
+    totalActualsRowCount: allActualsRows.length,
+    totalRevenueRowCount: allRevenueRows.length,
 
     // Actions
     uploadMapping,
     uploadBudget,
     uploadActuals,
-    uploadPriorYear,
+    uploadRevenue,
     clearAll,
     clearFile,
   };

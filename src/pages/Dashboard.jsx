@@ -83,9 +83,12 @@ const US_EXPENSE_CATEGORIES = [
 ];
 
 export default function Dashboard() {
-  const { hasData, allCategories, centers, getCategoriesForCenter, dataYears } = useData();
+  const { hasData, hasRevenue, revenueCategories, allCategories, centers, getCategoriesForCenter, dataYears } = useData();
   const { format } = useCurrency();
   const [selectedCenter, setSelectedCenter] = useState('');
+
+  // Revenue: use uploaded data when available, otherwise hardcoded
+  const activeRevenue = hasRevenue ? revenueCategories : usRevenue;
 
   // Mozambique categories from uploaded data or defaults
   const mzCategories = hasData
@@ -110,11 +113,11 @@ export default function Dashboard() {
   );
   const mzMonthLabel = maxMzActualMonths > 0 ? MONTHS[maxMzActualMonths - 1] : null;
 
-  // ── Revenue (US-based) ──
-  const revActual = ytdTotal(usRevenue);
-  const revBudget = ytdBudgetTotal(usRevenue);
-  const revPrior = ytdPriorYearTotal(usRevenue);
-  const revAnnual = fullYearBudgetTotal(usRevenue);
+  // ── Revenue ──
+  const revActual = ytdTotal(activeRevenue);
+  const revBudget = ytdBudgetTotal(activeRevenue);
+  const revPrior = ytdPriorYearTotal(activeRevenue);
+  const revAnnual = fullYearBudgetTotal(activeRevenue);
 
   // ── Total Expenses ──
   const usExpActual = ytdTotal(US_EXPENSE_CATEGORIES);
@@ -136,13 +139,13 @@ export default function Dashboard() {
   const netPrior = revPrior - totalExpPrior;
 
   // ── Table rows with location tags ──
-  const revenueRows = buildCategorySummary(usRevenue);
+  const revenueRows = buildCategorySummary(activeRevenue);
   const usExpRows = buildCategorySummary(US_EXPENSE_CATEGORIES).map((r) => ({ ...r, location: 'US' }));
   const mzExpRows = buildCategorySummary(mzCategories).map((r) => ({ ...r, location: 'MZ' }));
   const allExpRows = [...mzExpRows, ...usExpRows]; // MZ first since it's primary
 
   // ── Charts ──
-  const revenueChartData = buildMonthlyComparison(usRevenue, MONTHS);
+  const revenueChartData = buildMonthlyComparison(activeRevenue, MONTHS);
   const mzExpenseChartData = mzCategories.length > 0 ? buildMonthlyComparison(mzCategories, MONTHS) : [];
 
   // ── Pie data for MZ program allocation ──
@@ -287,7 +290,7 @@ export default function Dashboard() {
 
       {/* ── Revenue Table ── */}
       <FinancialTable
-        title="Revenue Detail (US-based)"
+        title={hasRevenue ? 'Revenue Detail' : 'Revenue Detail (US-based)'}
         rows={revenueRows}
         isRevenue
       />
@@ -331,7 +334,7 @@ export default function Dashboard() {
 
       <div className="section">
         <h3 className="section__title">Annual Budget Utilization — Revenue</h3>
-        {usRevenue.map((cat) => {
+        {activeRevenue.map((cat) => {
           const rows = buildCategorySummary([cat]);
           return (
             <BudgetProgressBar

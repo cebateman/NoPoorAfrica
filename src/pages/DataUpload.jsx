@@ -20,21 +20,21 @@ const FILE_CONFIGS = [
   },
   {
     key: 'actuals',
-    title: 'Actuals Data',
+    title: 'Expense Actuals',
     description:
-      'Actual monthly spending. Columns: Center Location, Date, Month, Year, Line Item, Category, Account, Sub Account, Amount (MT), Amount (USD)',
+      'All historical expense data in one file. Include as many years as you have — the system will automatically use the most recent year as current and the year before as prior year comparison. Columns: Center Location, Date, Month, Year, Line Item, Category, Account, Sub Account, Amount (MT), Amount (USD)',
     required: true,
   },
   {
-    key: 'priorYear',
-    title: 'Prior Year Data (Optional)',
+    key: 'revenue',
+    title: 'Revenue / Donations',
     description:
-      'Last year\'s actuals for comparison. Same format as actuals data.',
+      'Donation and revenue records. Include all years of data — auto-splits by year like expenses. Columns: Source/Donor, Date, Month, Year, Category, Amount (USD)',
     required: false,
   },
 ];
 
-function FileDropZone({ config, csvText, rowCount, onUpload, onClear }) {
+function FileDropZone({ config, csvText, rowCount, yearInfo, onUpload, onClear }) {
   const [dragOver, setDragOver] = useState(false);
   const inputRef = useRef(null);
   const hasFile = csvText && csvText.length > 0;
@@ -102,6 +102,7 @@ function FileDropZone({ config, csvText, rowCount, onUpload, onClear }) {
             <span>
               File loaded &middot; {rowCount.toLocaleString()} data rows &middot;{' '}
               {(csvText.length / 1024).toFixed(1)} KB
+              {yearInfo && <> &middot; Years: {yearInfo}</>}
             </span>
           </div>
           <div className="upload-card__actions">
@@ -145,7 +146,7 @@ export default function DataUpload() {
   const { format } = useCurrency();
 
   const getCSVText = (key) => {
-    const map = { mapping: data.mappingCSV, budget: data.budgetCSV, actuals: data.actualsCSV, priorYear: data.priorYearCSV };
+    const map = { mapping: data.mappingCSV, budget: data.budgetCSV, actuals: data.actualsCSV, revenue: data.revenueCSV };
     return map[key] || '';
   };
 
@@ -153,10 +154,20 @@ export default function DataUpload() {
     const map = {
       mapping: Object.keys(data.mapping).length,
       budget: data.budgetRows.length,
-      actuals: data.actualsRows.length,
-      priorYear: data.priorYearRows.length,
+      actuals: data.totalActualsRowCount,
+      revenue: data.totalRevenueRowCount,
     };
     return map[key] || 0;
+  };
+
+  const getYearInfo = (key) => {
+    if (key === 'actuals' && data.actualsYears.length > 0) {
+      return data.actualsYears.join(', ');
+    }
+    if (key === 'revenue' && data.revenueYears.length > 0) {
+      return data.revenueYears.join(', ');
+    }
+    return null;
   };
 
   const getUploader = (key) => {
@@ -164,7 +175,7 @@ export default function DataUpload() {
       mapping: data.uploadMapping,
       budget: data.uploadBudget,
       actuals: data.uploadActuals,
-      priorYear: data.uploadPriorYear,
+      revenue: data.uploadRevenue,
     };
     return map[key];
   };
@@ -190,8 +201,9 @@ export default function DataUpload() {
             <li>Upload the downloaded file below</li>
           </ol>
           <p>
-            Upload in order: <strong>1) Mapping</strong> first, then <strong>2) Budget</strong>,{' '}
-            <strong>3) Actuals</strong>, and optionally <strong>4) Prior Year</strong>.
+            Upload in order: <strong>1) Mapping</strong>, then <strong>2) Budget</strong>,{' '}
+            <strong>3) Expense Actuals</strong>, and <strong>4) Revenue</strong>.
+            Include all years of data in one file — the system auto-detects years.
           </p>
         </div>
       </div>
@@ -204,6 +216,7 @@ export default function DataUpload() {
             config={config}
             csvText={getCSVText(config.key)}
             rowCount={getRowCount(config.key)}
+            yearInfo={getYearInfo(config.key)}
             onUpload={getUploader(config.key)}
             onClear={() => data.clearFile(config.key)}
           />
@@ -211,7 +224,7 @@ export default function DataUpload() {
       </div>
 
       {/* Data summary */}
-      {data.hasData && (
+      {(data.hasData || data.hasRevenue) && (
         <div className="upload-summary">
           <h3>Data Summary</h3>
           <div className="upload-summary__grid">
@@ -223,13 +236,19 @@ export default function DataUpload() {
             )}
             {data.dataYears.length > 0 && (
               <div className="upload-summary__item">
-                <span className="upload-summary__label">Years</span>
+                <span className="upload-summary__label">Expense Years</span>
                 <span className="upload-summary__value">{data.dataYears.join(', ')}</span>
+              </div>
+            )}
+            {data.revenueYears.length > 0 && (
+              <div className="upload-summary__item">
+                <span className="upload-summary__label">Revenue Years</span>
+                <span className="upload-summary__value">{data.revenueYears.join(', ')}</span>
               </div>
             )}
             {data.hasActuals && (
               <div className="upload-summary__item">
-                <span className="upload-summary__label">Months with Actuals</span>
+                <span className="upload-summary__label">Months with Expense Actuals</span>
                 <span className="upload-summary__value">
                   {data.dataMonths.map((m) =>
                     ['', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][m]
@@ -245,12 +264,20 @@ export default function DataUpload() {
                 </span>
               </div>
             )}
+            {data.revenueCategories.length > 0 && (
+              <div className="upload-summary__item">
+                <span className="upload-summary__label">Revenue Categories</span>
+                <span className="upload-summary__value">
+                  {data.revenueCategories.map((c) => c.name).join(', ')}
+                </span>
+              </div>
+            )}
           </div>
         </div>
       )}
 
       {/* Clear all */}
-      {data.hasData && (
+      {(data.hasData || data.hasRevenue) && (
         <div className="upload-clear">
           <button className="btn btn--danger" onClick={data.clearAll}>
             <Trash2 size={16} /> Clear All Uploaded Data
@@ -258,10 +285,10 @@ export default function DataUpload() {
         </div>
       )}
 
-      {/* Data preview */}
+      {/* Expense data preview */}
       {data.hasActuals && data.allCategories.length > 0 && (
         <div className="fin-table-container">
-          <h3 className="fin-table__title">Actuals Preview by Expense Type</h3>
+          <h3 className="fin-table__title">Expense Actuals Preview by Type</h3>
           <div className="fin-table-scroll">
             <table className="fin-table">
               <thead>
@@ -289,6 +316,33 @@ export default function DataUpload() {
                         {format(cat.actualMonthly.reduce((a, b) => a + b, 0))}
                       </strong>
                     </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* Revenue data preview */}
+      {data.hasRevenue && data.revenueCategories.length > 0 && (
+        <div className="fin-table-container">
+          <h3 className="fin-table__title">Revenue Preview by Category</h3>
+          <div className="fin-table-scroll">
+            <table className="fin-table">
+              <thead>
+                <tr>
+                  <th className="fin-table__category">Category</th>
+                  <th>YTD Total</th>
+                  <th>Prior Year Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.revenueCategories.map((cat) => (
+                  <tr key={cat.id}>
+                    <td className="fin-table__category">{cat.name}</td>
+                    <td>{format(cat.actualMonthly.reduce((a, b) => a + b, 0))}</td>
+                    <td>{format(cat.priorYearMonthly.reduce((a, b) => a + b, 0))}</td>
                   </tr>
                 ))}
               </tbody>
