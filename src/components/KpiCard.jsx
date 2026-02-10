@@ -25,7 +25,7 @@ export default function KpiCard({ title, amount, comparisons, icon: Icon, type }
                       : ''
                 }`}
               >
-                {format(c.value)} ({formatPct(c.pct)})
+                {format(c.value)}{c.pct != null ? ` (${formatPct(c.pct)})` : ''}
               </span>
             </div>
           ))}

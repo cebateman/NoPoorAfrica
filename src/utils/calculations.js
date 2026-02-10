@@ -105,6 +105,7 @@ export function formatCurrency(amount) {
  * Format a percentage.
  */
 export function formatPct(value) {
+  if (value == null || isNaN(value)) return '—';
   const sign = value > 0 ? '+' : '';
   return `${sign}${value.toFixed(1)}%`;
 }
