@@ -111,18 +111,26 @@ export function formatPct(value) {
 
 /**
  * Build monthly comparison data for charts.
+ * options.actualsYear  — year of actuals data (for labels)
+ * options.budgetYear   — year of budget data; if ≠ actualsYear → budget = 0
+ * options.priorYear    — year of prior data (for labels)
  */
-export function buildMonthlyComparison(categories, months) {
+export function buildMonthlyComparison(categories, months, options = {}) {
+  const { actualsYear, budgetYear, priorYear: priorYr } = options;
+  const budgetMatchesActuals = !actualsYear || !budgetYear || budgetYear === actualsYear;
+
   // Determine max month with actual data
   const maxActualMonth = categories.reduce((max, cat) => {
     return Math.max(max, (cat.actualMonthly || []).length - 1);
   }, -1);
 
+  // Short year label like "'25"
+  const fmtYear = (y) => (y ? ` '${String(y).slice(-2)}` : '');
+
   return months.map((month, i) => {
-    const budget = categories.reduce(
-      (sum, cat) => sum + (cat.budgetMonthly[i] || 0),
-      0,
-    );
+    const budget = budgetMatchesActuals
+      ? categories.reduce((sum, cat) => sum + (cat.budgetMonthly[i] || 0), 0)
+      : 0;
     const actual =
       i <= maxActualMonth
         ? categories.reduce(
@@ -130,11 +138,15 @@ export function buildMonthlyComparison(categories, months) {
             0,
           )
         : null;
-    const priorYear = categories.reduce(
+    const prior = categories.reduce(
       (sum, cat) => sum + ((cat.priorYearMonthly || [])[i] || 0),
       0,
     );
-    return { month, budget, actual, priorYear };
+
+    // Label: "Jan '25" when year is known, otherwise just "Jan"
+    const label = actualsYear ? `${month}${fmtYear(actualsYear)}` : month;
+
+    return { month: label, budget, actual, priorYear: prior };
   });
 }
 

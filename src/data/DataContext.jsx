@@ -122,6 +122,21 @@ export function DataProvider({ children }) {
     [revenueCurrentRows, revenuePriorRows],
   );
 
+  // Determine budget year from budget rows
+  const budgetYear = useMemo(() => {
+    if (budgetRows.length === 0) return null;
+    const years = [...new Set(budgetRows.map((r) => r.year))].sort((a, b) => a - b);
+    return years[years.length - 1]; // most recent year in budget
+  }, [budgetRows]);
+
+  // Actuals year and prior year
+  const actualsYear = actualsYears.length > 0 ? actualsYears[actualsYears.length - 1] : null;
+  const priorYear = actualsYears.length > 1 ? actualsYears[actualsYears.length - 2] : null;
+
+  // Revenue years
+  const revenueCurrentYear = revenueYears.length > 0 ? revenueYears[revenueYears.length - 1] : null;
+  const revenuePriorYear = revenueYears.length > 1 ? revenueYears[revenueYears.length - 2] : null;
+
   // Determine what data is available
   const hasMapping = Object.keys(mapping).length > 0;
   const hasBudget = budgetRows.length > 0;
@@ -201,7 +216,12 @@ export function DataProvider({ children }) {
     currentMonthIndex,
     allCategories,
     getCategoriesForCenter,
+    actualsYear,
+    priorYear,
+    budgetYear,
     actualsYears,
+    revenueCurrentYear,
+    revenuePriorYear,
     revenueYears,
     revenueCategories,
     revenueCurrentRows,

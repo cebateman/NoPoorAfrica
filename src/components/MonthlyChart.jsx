@@ -11,8 +11,17 @@ import {
 } from 'recharts';
 import { useCurrency } from '../data/CurrencyContext';
 
-export default function MonthlyChart({ title, data }) {
+export default function MonthlyChart({ title, data, actualsYear, budgetYear, priorYear }) {
   const { format, convert } = useCurrency();
+
+  const budgetMatchesActuals = !actualsYear || !budgetYear || budgetYear === actualsYear;
+
+  // Legend labels with year context
+  const budgetLabel = budgetMatchesActuals
+    ? (budgetYear ? `Budget ${budgetYear}` : 'Budget')
+    : 'Budget (none)';
+  const actualLabel = actualsYear ? `Actual ${actualsYear}` : 'Actual';
+  const priorLabel = priorYear ? `Prior Year ${priorYear}` : 'Prior Year';
 
   // Convert data for display
   const chartData = data.map((d) => ({
@@ -21,6 +30,11 @@ export default function MonthlyChart({ title, data }) {
     actual: d.actual !== null ? convert(d.actual) : null,
     priorYear: convert(d.priorYear),
   }));
+
+  // Only show budget bar if there's matching budget data
+  const showBudget = budgetMatchesActuals && chartData.some((d) => d.budget > 0);
+  // Only show prior year bar if there's data
+  const showPrior = chartData.some((d) => d.priorYear > 0);
 
   return (
     <div className="chart-container">
@@ -33,9 +47,13 @@ export default function MonthlyChart({ title, data }) {
           <Tooltip formatter={(value) => format(value)} />
           <Legend />
           <ReferenceLine y={0} stroke="#9ca3af" />
-          <Bar dataKey="budget" name="Budget" fill="#94a3b8" radius={[2, 2, 0, 0]} />
-          <Bar dataKey="priorYear" name="Prior Year" fill="#c4b5fd" radius={[2, 2, 0, 0]} />
-          <Bar dataKey="actual" name="Actual" fill="#2563eb" radius={[2, 2, 0, 0]} />
+          {showBudget && (
+            <Bar dataKey="budget" name={budgetLabel} fill="#94a3b8" radius={[2, 2, 0, 0]} />
+          )}
+          {showPrior && (
+            <Bar dataKey="priorYear" name={priorLabel} fill="#c4b5fd" radius={[2, 2, 0, 0]} />
+          )}
+          <Bar dataKey="actual" name={actualLabel} fill="#2563eb" radius={[2, 2, 0, 0]} />
         </BarChart>
       </ResponsiveContainer>
     </div>

@@ -83,7 +83,11 @@ const US_EXPENSE_CATEGORIES = [
 ];
 
 export default function Dashboard() {
-  const { hasData, hasRevenue, revenueCategories, allCategories, centers, getCategoriesForCenter, dataYears } = useData();
+  const {
+    hasData, hasRevenue, revenueCategories, allCategories, centers,
+    getCategoriesForCenter, dataYears, actualsYear, priorYear, budgetYear,
+    revenueCurrentYear, revenuePriorYear,
+  } = useData();
   const { format } = useCurrency();
   const [selectedCenter, setSelectedCenter] = useState('');
 
@@ -145,8 +149,21 @@ export default function Dashboard() {
   const allExpRows = [...mzExpRows, ...usExpRows]; // MZ first since it's primary
 
   // ── Charts ──
-  const revenueChartData = buildMonthlyComparison(activeRevenue, MONTHS);
-  const mzExpenseChartData = mzCategories.length > 0 ? buildMonthlyComparison(mzCategories, MONTHS) : [];
+  // For revenue: use revenue-specific years if uploaded, otherwise hardcoded (FISCAL_YEAR)
+  const revActualsYr = hasRevenue ? revenueCurrentYear : FISCAL_YEAR;
+  const revPriorYr = hasRevenue ? revenuePriorYear : FISCAL_YEAR - 1;
+  const revBudgetYr = hasRevenue ? null : FISCAL_YEAR; // hardcoded data has budget for same year
+
+  const revenueChartData = buildMonthlyComparison(activeRevenue, MONTHS, {
+    actualsYear: revActualsYr, budgetYear: revBudgetYr, priorYear: revPriorYr,
+  });
+
+  // For MZ expenses: use uploaded data years
+  const mzExpenseChartData = mzCategories.length > 0
+    ? buildMonthlyComparison(mzCategories, MONTHS, {
+        actualsYear: actualsYear, budgetYear: budgetYear, priorYear: priorYear,
+      })
+    : [];
 
   // ── Pie data for MZ program allocation ──
   const mzPieData = mzCategories
@@ -275,9 +292,21 @@ export default function Dashboard() {
 
       {/* ── Charts ── */}
       <div className="chart-grid">
-        <MonthlyChart title="Revenue: Budget vs Actual vs Prior Year" data={revenueChartData} />
+        <MonthlyChart
+          title="Revenue: Actual vs Prior Year"
+          data={revenueChartData}
+          actualsYear={revActualsYr}
+          budgetYear={revBudgetYr}
+          priorYear={revPriorYr}
+        />
         {mzExpenseChartData.length > 0 && (
-          <MonthlyChart title="MZ Program Expenses: Budget vs Actual vs Prior Year" data={mzExpenseChartData} />
+          <MonthlyChart
+            title="MZ Expenses: Actual vs Prior Year"
+            data={mzExpenseChartData}
+            actualsYear={actualsYear}
+            budgetYear={budgetYear}
+            priorYear={priorYear}
+          />
         )}
       </div>
 
