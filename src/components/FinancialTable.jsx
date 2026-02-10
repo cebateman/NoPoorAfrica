@@ -1,7 +1,9 @@
-import { formatCurrency, formatPct } from '../utils/calculations';
+import { formatPct } from '../utils/calculations';
+import { useCurrency } from '../data/CurrencyContext';
 
 export default function FinancialTable({ title, rows, isRevenue }) {
-  // For revenue: over budget is favorable. For expenses: under budget is favorable.
+  const { format } = useCurrency();
+
   const isFavorable = (variance, isRevenueRow) =>
     isRevenueRow ? variance >= 0 : variance <= 0;
 
@@ -42,23 +44,26 @@ export default function FinancialTable({ title, rows, isRevenue }) {
           <tbody>
             {rows.map((row) => (
               <tr key={row.id}>
-                <td className="fin-table__category">{row.name}</td>
-                <td>{formatCurrency(row.ytdActual)}</td>
-                <td>{formatCurrency(row.ytdBudget)}</td>
+                <td className="fin-table__category">
+                  {row.name}
+                  {row.location && <span className={`location-tag location-tag--${row.location.toLowerCase()}`}>{row.location}</span>}
+                </td>
+                <td>{format(row.ytdActual)}</td>
+                <td>{format(row.ytdBudget)}</td>
                 <td className={isFavorable(row.budgetVar, isRevenue) ? 'favorable' : 'unfavorable'}>
-                  {formatCurrency(row.budgetVar)}
+                  {format(row.budgetVar)}
                 </td>
                 <td className={isFavorable(row.budgetVar, isRevenue) ? 'favorable' : 'unfavorable'}>
                   {formatPct(row.budgetVarPct)}
                 </td>
-                <td>{formatCurrency(row.ytdPrior)}</td>
+                <td>{format(row.ytdPrior)}</td>
                 <td className={isFavorable(row.priorVar, isRevenue) ? 'favorable' : 'unfavorable'}>
-                  {formatCurrency(row.priorVar)}
+                  {format(row.priorVar)}
                 </td>
                 <td className={isFavorable(row.priorVar, isRevenue) ? 'favorable' : 'unfavorable'}>
                   {formatPct(row.priorVarPct)}
                 </td>
-                <td>{formatCurrency(row.annualBudget)}</td>
+                <td>{format(row.annualBudget)}</td>
                 <td>{row.pctOfAnnualBudget.toFixed(1)}%</td>
               </tr>
             ))}
@@ -66,22 +71,22 @@ export default function FinancialTable({ title, rows, isRevenue }) {
           <tfoot>
             <tr className="fin-table__total-row">
               <td className="fin-table__category"><strong>Total</strong></td>
-              <td><strong>{formatCurrency(totals.ytdActual)}</strong></td>
-              <td><strong>{formatCurrency(totals.ytdBudget)}</strong></td>
+              <td><strong>{format(totals.ytdActual)}</strong></td>
+              <td><strong>{format(totals.ytdBudget)}</strong></td>
               <td className={isFavorable(totals.budgetVar, isRevenue) ? 'favorable' : 'unfavorable'}>
-                <strong>{formatCurrency(totals.budgetVar)}</strong>
+                <strong>{format(totals.budgetVar)}</strong>
               </td>
               <td className={isFavorable(totals.budgetVar, isRevenue) ? 'favorable' : 'unfavorable'}>
                 <strong>{formatPct(totalBudgetVarPct)}</strong>
               </td>
-              <td><strong>{formatCurrency(totals.ytdPrior)}</strong></td>
+              <td><strong>{format(totals.ytdPrior)}</strong></td>
               <td className={isFavorable(totals.priorVar, isRevenue) ? 'favorable' : 'unfavorable'}>
-                <strong>{formatCurrency(totals.priorVar)}</strong>
+                <strong>{format(totals.priorVar)}</strong>
               </td>
               <td className={isFavorable(totals.priorVar, isRevenue) ? 'favorable' : 'unfavorable'}>
                 <strong>{formatPct(totalPriorVarPct)}</strong>
               </td>
-              <td><strong>{formatCurrency(totals.annualBudget)}</strong></td>
+              <td><strong>{format(totals.annualBudget)}</strong></td>
               <td>
                 <strong>
                   {totals.annualBudget > 0

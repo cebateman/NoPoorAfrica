@@ -1,16 +1,19 @@
-import { formatCurrency } from '../utils/calculations';
+import { useCurrency } from '../data/CurrencyContext';
 
-export default function BudgetProgressBar({ label, actual, budget, priorYear }) {
+export default function BudgetProgressBar({ label, actual, budget, priorYear, location }) {
+  const { format } = useCurrency();
   const pct = budget > 0 ? (actual / budget) * 100 : 0;
   const priorPct = budget > 0 ? (priorYear / budget) * 100 : 0;
   const cappedPct = Math.min(pct, 100);
 
-  // Expected progress through the year (1 month / 12)
-  const expectedPct = (1 / 12) * 100; // ~8.3% through January
+  const expectedPct = (1 / 12) * 100;
 
   return (
     <div className="progress-bar-row">
-      <div className="progress-bar__label">{label}</div>
+      <div className="progress-bar__label">
+        {label}
+        {location && <span className={`location-tag location-tag--${location.toLowerCase()}`}>{location}</span>}
+      </div>
       <div className="progress-bar__track">
         <div
           className={`progress-bar__fill ${pct > expectedPct + 5 ? 'progress-bar__fill--over' : ''}`}
@@ -30,8 +33,8 @@ export default function BudgetProgressBar({ label, actual, budget, priorYear }) 
         )}
       </div>
       <div className="progress-bar__values">
-        <span>{formatCurrency(actual)}</span>
-        <span className="progress-bar__of">of {formatCurrency(budget)}</span>
+        <span>{format(actual)}</span>
+        <span className="progress-bar__of">of {format(budget)}</span>
         <span className="progress-bar__pct">({pct.toFixed(1)}%)</span>
       </div>
     </div>

@@ -1,6 +1,7 @@
 import { useCallback, useRef, useState } from 'react';
 import { Upload, FileText, Trash2, CheckCircle, AlertCircle, Info } from 'lucide-react';
 import { useData } from '../data/DataContext';
+import { useCurrency } from '../data/CurrencyContext';
 
 const FILE_CONFIGS = [
   {
@@ -141,6 +142,7 @@ function FileDropZone({ config, csvText, rowCount, onUpload, onClear }) {
 
 export default function DataUpload() {
   const data = useData();
+  const { format } = useCurrency();
 
   const getCSVText = (key) => {
     const map = { mapping: data.mappingCSV, budget: data.budgetCSV, actuals: data.actualsCSV, priorYear: data.priorYearCSV };
@@ -279,12 +281,12 @@ export default function DataUpload() {
                     <td className="fin-table__category">{cat.name}</td>
                     {data.dataMonths.map((m) => (
                       <td key={m}>
-                        ${(cat.actualMonthly[m - 1] || 0).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                        {format(cat.actualMonthly[m - 1] || 0)}
                       </td>
                     ))}
                     <td>
                       <strong>
-                        ${cat.actualMonthly.reduce((a, b) => a + b, 0).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                        {format(cat.actualMonthly.reduce((a, b) => a + b, 0))}
                       </strong>
                     </td>
                   </tr>

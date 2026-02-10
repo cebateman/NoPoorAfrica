@@ -1,14 +1,15 @@
 import { NavLink, Outlet } from 'react-router-dom';
-import { BarChart3, Globe, DollarSign, Users, Upload } from 'lucide-react';
+import { BarChart3, Users, Upload } from 'lucide-react';
+import { useCurrency } from '../data/CurrencyContext';
 
 const navItems = [
-  { to: '/', label: 'Executive Overview', icon: BarChart3 },
-  { to: '/us', label: 'US Operations', icon: DollarSign },
-  { to: '/mozambique', label: 'Mozambique Operations', icon: Globe },
+  { to: '/', label: 'Dashboard', icon: BarChart3 },
   { to: '/upload', label: 'Upload Data', icon: Upload },
 ];
 
 export default function Layout() {
+  const { currency, toggle } = useCurrency();
+
   return (
     <div className="layout">
       <header className="header">
@@ -19,27 +20,38 @@ export default function Layout() {
             <span className="header-subtitle">Financial Leadership Dashboard</span>
           </div>
         </div>
-        <nav className="nav">
-          {navItems.map(({ to, label, icon: Icon }) => (
-            <NavLink
-              key={to}
-              to={to}
-              end={to === '/'}
-              className={({ isActive }) =>
-                `nav-link ${isActive ? 'nav-link--active' : ''}`
-              }
-            >
-              <Icon size={16} />
-              {label}
-            </NavLink>
-          ))}
-        </nav>
+        <div className="header-right">
+          <nav className="nav">
+            {navItems.map(({ to, label, icon: Icon }) => (
+              <NavLink
+                key={to}
+                to={to}
+                end={to === '/'}
+                className={({ isActive }) =>
+                  `nav-link ${isActive ? 'nav-link--active' : ''}`
+                }
+              >
+                <Icon size={16} />
+                {label}
+              </NavLink>
+            ))}
+          </nav>
+          <button
+            className="currency-toggle"
+            onClick={toggle}
+            title={`Switch to ${currency === 'USD' ? 'MZN' : 'USD'}`}
+          >
+            <span className={currency === 'USD' ? 'currency-toggle__active' : ''}>USD</span>
+            <span className="currency-toggle__divider">/</span>
+            <span className={currency === 'MZN' ? 'currency-toggle__active' : ''}>MZN</span>
+          </button>
+        </div>
       </header>
       <main className="main">
         <Outlet />
       </main>
       <footer className="footer">
-        <p>No Poor Africa &middot; Financial Leadership Dashboard</p>
+        <p>No Poor Africa &middot; Financial Leadership Dashboard &middot; Exchange rate: 63 MZN = 1 USD</p>
       </footer>
     </div>
   );

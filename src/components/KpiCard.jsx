@@ -1,13 +1,16 @@
-import { formatCurrency, formatPct } from '../utils/calculations';
+import { formatPct } from '../utils/calculations';
+import { useCurrency } from '../data/CurrencyContext';
 
 export default function KpiCard({ title, amount, comparisons, icon: Icon, type }) {
+  const { format } = useCurrency();
+
   return (
     <div className={`kpi-card kpi-card--${type || 'default'}`}>
       <div className="kpi-card__header">
         {Icon && <Icon size={20} className="kpi-card__icon" />}
         <span className="kpi-card__title">{title}</span>
       </div>
-      <div className="kpi-card__amount">{formatCurrency(amount)}</div>
+      <div className="kpi-card__amount">{format(amount)}</div>
       {comparisons && (
         <div className="kpi-card__comparisons">
           {comparisons.map((c, i) => (
@@ -22,7 +25,7 @@ export default function KpiCard({ title, amount, comparisons, icon: Icon, type }
                       : ''
                 }`}
               >
-                {formatCurrency(c.value)} ({formatPct(c.pct)})
+                {format(c.value)} ({formatPct(c.pct)})
               </span>
             </div>
           ))}
