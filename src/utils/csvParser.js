@@ -286,9 +286,9 @@ export function buildRevenueCategories(currentYearRows, priorYearRows) {
 export function buildDashboardCategories(rows, budgetRows, priorYearRows) {
   const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
-  // Get expense types from actuals (or budget as fallback)
-  const sourceRows = rows.length > 0 ? rows : budgetRows;
-  const expenseTypes = uniqueValues(sourceRows, 'expenseType');
+  // Get expense types from the union of actuals AND budget so that
+  // budget-only categories (no actuals yet) still appear in the dashboard
+  const expenseTypes = uniqueValues([...rows, ...budgetRows, ...priorYearRows], 'expenseType');
 
   return expenseTypes.map((type) => {
     const typeActuals = rows.filter((r) => r.expenseType === type);

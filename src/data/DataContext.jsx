@@ -129,6 +129,13 @@ export function DataProvider({ children }) {
     return years[years.length - 1]; // most recent year in budget
   }, [budgetRows]);
 
+  // Filter budget rows to the budget year only (prevents double-counting
+  // when the budget CSV contains multiple years)
+  const filteredBudgetRows = useMemo(() => {
+    if (!budgetYear || budgetRows.length === 0) return budgetRows;
+    return budgetRows.filter((r) => r.year === budgetYear);
+  }, [budgetRows, budgetYear]);
+
   // Actuals year and prior year
   const actualsYear = actualsYears.length > 0 ? actualsYears[actualsYears.length - 1] : null;
   const priorYear = actualsYears.length > 1 ? actualsYears[actualsYears.length - 2] : null;
@@ -146,10 +153,10 @@ export function DataProvider({ children }) {
   const hasData = hasBudget || hasActuals;
 
   // Get metadata from data
-  const allRows = [...budgetRows, ...allActualsRows];
+  const allRows = [...filteredBudgetRows, ...allActualsRows];
   const centers = uniqueValues(allRows, 'centerLocation');
   const dataYears = actualsYears.length > 0 ? actualsYears : getDataYears(allRows);
-  const dataMonths = getDataMonths(hasActuals ? actualsRows : budgetRows);
+  const dataMonths = getDataMonths(hasActuals ? actualsRows : filteredBudgetRows);
 
   // Determine current month index (last month with actual data)
   const currentMonthIndex = hasActuals
@@ -164,15 +171,15 @@ export function DataProvider({ children }) {
 
       return buildDashboardCategories(
         filterByCenter(actualsRows),
-        filterByCenter(budgetRows),
+        filterByCenter(filteredBudgetRows),
         filterByCenter(priorYearRows),
       );
     },
-    [actualsRows, budgetRows, priorYearRows],
+    [actualsRows, filteredBudgetRows, priorYearRows],
   );
 
   // Build all-center categories
-  const allCategories = buildDashboardCategories(actualsRows, budgetRows, priorYearRows);
+  const allCategories = buildDashboardCategories(actualsRows, filteredBudgetRows, priorYearRows);
 
   // Upload handlers
   const uploadMapping = useCallback((text) => setMappingCSV(text), []);
