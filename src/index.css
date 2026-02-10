@@ -969,3 +969,20 @@ body {
   color: var(--color-text-secondary);
   opacity: 0.5;
 }
+
+/* ── Monthly Review ── */
+.monthly-review {
+  background: var(--color-surface);
+  border-radius: var(--radius);
+  padding: 20px;
+  box-shadow: var(--shadow);
+  border-left: 4px solid var(--color-accent);
+}
+
+.monthly-review__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}

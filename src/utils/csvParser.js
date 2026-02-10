@@ -243,6 +243,14 @@ export function buildRevenueCategories(currentYearRows, priorYearRows) {
     const catCurrent = currentYearRows.filter((r) => r.category === cat);
     const catPrior = priorYearRows.filter((r) => r.category === cat);
 
+    // Find last month with actual data
+    let lastActualMonth = 0;
+    for (let m = 1; m <= 12; m++) {
+      if (catCurrent.some((r) => r.month === m)) {
+        lastActualMonth = m;
+      }
+    }
+
     const actualMonthly = [];
     const priorYearMonthly = [];
 
@@ -254,7 +262,7 @@ export function buildRevenueCategories(currentYearRows, priorYearRows) {
         .filter((r) => r.month === m)
         .reduce((s, r) => s + r.amountUSD, 0);
 
-      if (catCurrent.some((r) => r.month === m)) {
+      if (m <= lastActualMonth) {
         actualMonthly.push(currentSum);
       }
       priorYearMonthly.push(priorSum);
@@ -287,10 +295,20 @@ export function buildDashboardCategories(rows, budgetRows, priorYearRows) {
     const typeBudget = budgetRows.filter((r) => r.expenseType === type);
     const typePrior = priorYearRows.filter((r) => r.expenseType === type);
 
-    const actualMonthly = [];
     const budgetMonthly = [];
     const priorYearMonthly = [];
 
+    // Find the last month (1-based) that has actual data for this type
+    let lastActualMonth = 0;
+    for (let m = 1; m <= 12; m++) {
+      if (typeActuals.some((r) => r.month === m)) {
+        lastActualMonth = m;
+      }
+    }
+
+    // Build positional arrays: index 0 = Jan, index 1 = Feb, etc.
+    // actualMonthly is truncated at the last month with data
+    const actualMonthly = [];
     for (let m = 1; m <= 12; m++) {
       const actualSum = typeActuals
         .filter((r) => r.month === m)
@@ -302,8 +320,8 @@ export function buildDashboardCategories(rows, budgetRows, priorYearRows) {
         .filter((r) => r.month === m)
         .reduce((s, r) => s + r.amountUSD, 0);
 
-      // Only include actual months that have data
-      if (typeActuals.some((r) => r.month === m)) {
+      // Include actual values up to (and including) the last month with data
+      if (m <= lastActualMonth) {
         actualMonthly.push(actualSum);
       }
       budgetMonthly.push(budgetSum);

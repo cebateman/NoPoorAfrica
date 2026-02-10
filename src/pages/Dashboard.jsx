@@ -8,6 +8,7 @@ import {
   Settings,
   Eye,
   EyeOff,
+  Calendar,
 } from 'lucide-react';
 import {
   ResponsiveContainer,
@@ -37,6 +38,8 @@ import {
   buildMonthlyComparison,
   buildTimelineData,
   buildCategorySummary,
+  monthTotal,
+  buildMonthlyCategoryDetail,
 } from '../utils/calculations';
 import KpiCard from '../components/KpiCard';
 import FinancialTable from '../components/FinancialTable';
@@ -60,6 +63,8 @@ const SECTIONS = [
   { id: 'chartMzExpense', label: 'MZ Expense Bar Chart',         group: 'Charts' },
   { id: 'tableExpenses',  label: 'Expense Table',                group: 'Tables' },
   { id: 'tableRevenue',   label: 'Revenue Table',                group: 'Tables' },
+  { id: 'monthlyKpis',    label: 'Monthly KPI Cards',            group: 'Monthly Review' },
+  { id: 'monthlyDetail',  label: 'Monthly Category Breakdown',   group: 'Monthly Review' },
   { id: 'budgetMz',       label: 'Budget Progress: MZ',          group: 'Budget Progress' },
   { id: 'budgetUs',       label: 'Budget Progress: US',          group: 'Budget Progress' },
   { id: 'budgetRevenue',  label: 'Budget Progress: Revenue',     group: 'Budget Progress' },
@@ -144,6 +149,7 @@ export default function Dashboard() {
   const [selectedCenter, setSelectedCenter] = useState('');
   const [showSettings, setShowSettings] = useState(false);
   const [visibility, setVisibility] = useState(loadSectionVisibility);
+  const [selectedMonthIdx, setSelectedMonthIdx] = useState(null); // null = auto (latest)
 
   const show = (id) => visibility[id] !== false;
 
@@ -250,6 +256,51 @@ export default function Dashboard() {
     { name: 'Mozambique Programs', value: mzExpActual },
     { name: 'US Operations', value: usExpActual },
   ].filter((d) => d.value > 0);
+
+  // ── Monthly Review ──
+  // Determine the active month for the monthly review
+  const maxMzActualIdx = mzCategories.reduce(
+    (max, cat) => Math.max(max, (cat.actualMonthly || []).length - 1), -1,
+  );
+  const maxUsActualIdx = US_EXPENSE_CATEGORIES.reduce(
+    (max, cat) => Math.max(max, (cat.actualMonthly || []).length - 1), -1,
+  );
+  const lastActualIdx = Math.max(maxMzActualIdx, maxUsActualIdx);
+  const reviewMonthIdx = selectedMonthIdx !== null ? selectedMonthIdx : lastActualIdx;
+  const reviewMonthLabel = reviewMonthIdx >= 0 ? MONTHS[reviewMonthIdx] : null;
+  const reviewActualsYear = actualsYear || FISCAL_YEAR;
+  const reviewPriorYr = priorYear || (reviewActualsYear - 1);
+
+  // Monthly totals for the selected month
+  const mMonthExpMz = reviewMonthIdx >= 0 ? monthTotal(mzCategories, 'actualMonthly', reviewMonthIdx) : 0;
+  const mMonthExpUs = reviewMonthIdx >= 0 ? monthTotal(US_EXPENSE_CATEGORIES, 'actualMonthly', reviewMonthIdx) : 0;
+  const mMonthExpTotal = mMonthExpMz + mMonthExpUs;
+
+  const mMonthBudgetMz = reviewMonthIdx >= 0 ? monthTotal(mzCategories, 'budgetMonthly', reviewMonthIdx) : 0;
+  const mMonthBudgetUs = reviewMonthIdx >= 0 ? monthTotal(US_EXPENSE_CATEGORIES, 'budgetMonthly', reviewMonthIdx) : 0;
+  const mMonthBudgetTotal = mMonthBudgetMz + mMonthBudgetUs;
+
+  const mMonthPriorMz = reviewMonthIdx >= 0 ? monthTotal(mzCategories, 'priorYearMonthly', reviewMonthIdx) : 0;
+  const mMonthPriorUs = reviewMonthIdx >= 0 ? monthTotal(US_EXPENSE_CATEGORIES, 'priorYearMonthly', reviewMonthIdx) : 0;
+  const mMonthPriorTotal = mMonthPriorMz + mMonthPriorUs;
+
+  const mMonthRev = reviewMonthIdx >= 0 ? monthTotal(activeRevenue, 'actualMonthly', reviewMonthIdx) : 0;
+  const mMonthRevBudget = reviewMonthIdx >= 0 ? monthTotal(activeRevenue, 'budgetMonthly', reviewMonthIdx) : 0;
+  const mMonthRevPrior = reviewMonthIdx >= 0 ? monthTotal(activeRevenue, 'priorYearMonthly', reviewMonthIdx) : 0;
+
+  const mMonthNet = mMonthRev - mMonthExpTotal;
+
+  // Monthly category detail for the selected month
+  const allExpCats = [...mzCategories.map((c) => ({ ...c, location: 'MZ' })), ...US_EXPENSE_CATEGORIES];
+  const monthlyExpDetail = reviewMonthIdx >= 0 ? buildMonthlyCategoryDetail(allExpCats, reviewMonthIdx) : [];
+
+  // Available months for the selector (months that have any actual data)
+  const availableMonths = [];
+  for (let m = 0; m < 12; m++) {
+    const hasMz = mzCategories.some((cat) => m < (cat.actualMonthly || []).length);
+    const hasUs = US_EXPENSE_CATEGORIES.some((cat) => m < (cat.actualMonthly || []).length);
+    if (hasMz || hasUs) availableMonths.push(m);
+  }
 
   // Group sections for the settings panel
   const groups = {};
@@ -464,6 +515,139 @@ export default function Dashboard() {
               budgetYear={budgetYear}
               priorYear={priorYear}
             />
+          )}
+        </div>
+      )}
+
+      {/* ── Monthly Business Review ── */}
+      {(show('monthlyKpis') || show('monthlyDetail')) && reviewMonthIdx >= 0 && (
+        <div className="monthly-review">
+          <div className="monthly-review__header">
+            <h3 className="section__title">
+              <Calendar size={16} style={{ verticalAlign: 'middle', marginRight: 6 }} />
+              Monthly Business Review — {reviewMonthLabel} {reviewActualsYear}
+            </h3>
+            <select
+              className="filter-select"
+              value={reviewMonthIdx}
+              onChange={(e) => setSelectedMonthIdx(Number(e.target.value))}
+            >
+              {availableMonths.map((m) => (
+                <option key={m} value={m}>
+                  {MONTHS[m]} {reviewActualsYear}
+                  {m === lastActualIdx ? ' (latest)' : ''}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Monthly KPI cards */}
+          {show('monthlyKpis') && (
+            <div className="kpi-grid" style={{ marginTop: 16 }}>
+              <KpiCard
+                title={`${reviewMonthLabel} Expenses`}
+                amount={mMonthExpTotal}
+                icon={TrendingDown}
+                type="expense"
+                comparisons={[
+                  { label: 'vs Budget', value: variance(mMonthExpTotal, mMonthBudgetTotal), pct: variancePct(mMonthExpTotal, mMonthBudgetTotal), favorable: mMonthExpTotal <= mMonthBudgetTotal },
+                  { label: `vs ${reviewMonthLabel} ${reviewPriorYr}`, value: variance(mMonthExpTotal, mMonthPriorTotal), pct: variancePct(mMonthExpTotal, mMonthPriorTotal), favorable: mMonthExpTotal <= mMonthPriorTotal },
+                ]}
+              />
+              <KpiCard
+                title={`${reviewMonthLabel} Revenue`}
+                amount={mMonthRev}
+                icon={TrendingUp}
+                type="revenue"
+                comparisons={[
+                  { label: 'vs Budget', value: variance(mMonthRev, mMonthRevBudget), pct: variancePct(mMonthRev, mMonthRevBudget), favorable: mMonthRev >= mMonthRevBudget },
+                  { label: `vs ${reviewMonthLabel} ${reviewPriorYr}`, value: variance(mMonthRev, mMonthRevPrior), pct: variancePct(mMonthRev, mMonthRevPrior), favorable: mMonthRev >= mMonthRevPrior },
+                ]}
+              />
+              <KpiCard
+                title={`${reviewMonthLabel} Net`}
+                amount={mMonthNet}
+                icon={DollarSign}
+                type={mMonthNet >= 0 ? 'revenue' : 'expense'}
+                comparisons={[
+                  { label: 'Revenue', value: mMonthRev },
+                  { label: 'Expenses', value: -mMonthExpTotal },
+                ]}
+              />
+            </div>
+          )}
+
+          {/* Monthly category breakdown table */}
+          {show('monthlyDetail') && monthlyExpDetail.length > 0 && (
+            <div className="fin-table-container" style={{ marginTop: 16 }}>
+              <h3 className="fin-table__title">
+                {reviewMonthLabel} {reviewActualsYear} — Expenses by Category
+              </h3>
+              <div className="fin-table-scroll">
+                <table className="fin-table">
+                  <thead>
+                    <tr>
+                      <th className="fin-table__category">Category</th>
+                      <th>Actual</th>
+                      <th>Budget</th>
+                      <th>Var ($)</th>
+                      <th>Var (%)</th>
+                      <th>{reviewMonthLabel} {reviewPriorYr}</th>
+                      <th>YoY ($)</th>
+                      <th>YoY (%)</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {monthlyExpDetail.filter((r) => r.actual !== null || r.budget > 0).map((row) => (
+                      <tr key={row.id}>
+                        <td className="fin-table__category">
+                          {row.name}
+                          {row.location && (
+                            <span className={`location-tag location-tag--${row.location.toLowerCase()}`}>
+                              {row.location}
+                            </span>
+                          )}
+                        </td>
+                        <td>{row.actual !== null ? format(row.actual) : '—'}</td>
+                        <td>{format(row.budget)}</td>
+                        <td className={row.budgetVar !== null ? (row.budgetVar <= 0 ? 'favorable' : 'unfavorable') : ''}>
+                          {row.budgetVar !== null ? format(row.budgetVar) : '—'}
+                        </td>
+                        <td className={row.budgetVarPct !== null ? (row.budgetVarPct <= 0 ? 'favorable' : 'unfavorable') : ''}>
+                          {row.budgetVarPct !== null ? `${row.budgetVarPct > 0 ? '+' : ''}${row.budgetVarPct.toFixed(1)}%` : '—'}
+                        </td>
+                        <td>{format(row.prior)}</td>
+                        <td className={row.priorVar !== null ? (row.priorVar <= 0 ? 'favorable' : 'unfavorable') : ''}>
+                          {row.priorVar !== null ? format(row.priorVar) : '—'}
+                        </td>
+                        <td className={row.priorVarPct !== null ? (row.priorVarPct <= 0 ? 'favorable' : 'unfavorable') : ''}>
+                          {row.priorVarPct !== null ? `${row.priorVarPct > 0 ? '+' : ''}${row.priorVarPct.toFixed(1)}%` : '—'}
+                        </td>
+                      </tr>
+                    ))}
+                    {/* Totals row */}
+                    <tr className="fin-table__total-row">
+                      <td className="fin-table__category"><strong>Total</strong></td>
+                      <td><strong>{format(mMonthExpTotal)}</strong></td>
+                      <td><strong>{format(mMonthBudgetTotal)}</strong></td>
+                      <td className={mMonthExpTotal <= mMonthBudgetTotal ? 'favorable' : 'unfavorable'}>
+                        <strong>{format(mMonthExpTotal - mMonthBudgetTotal)}</strong>
+                      </td>
+                      <td className={mMonthExpTotal <= mMonthBudgetTotal ? 'favorable' : 'unfavorable'}>
+                        <strong>{mMonthBudgetTotal ? `${variancePct(mMonthExpTotal, mMonthBudgetTotal).toFixed(1)}%` : '—'}</strong>
+                      </td>
+                      <td><strong>{format(mMonthPriorTotal)}</strong></td>
+                      <td className={mMonthExpTotal <= mMonthPriorTotal ? 'favorable' : 'unfavorable'}>
+                        <strong>{format(mMonthExpTotal - mMonthPriorTotal)}</strong>
+                      </td>
+                      <td className={mMonthExpTotal <= mMonthPriorTotal ? 'favorable' : 'unfavorable'}>
+                        <strong>{mMonthPriorTotal ? `${variancePct(mMonthExpTotal, mMonthPriorTotal).toFixed(1)}%` : '—'}</strong>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
           )}
         </div>
       )}

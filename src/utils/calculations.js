@@ -213,6 +213,43 @@ export function buildTimelineData(categories, months, options = {}) {
 }
 
 /**
+ * Get a single month's total across categories.
+ * monthIdx is 0-based (0 = Jan).
+ */
+export function monthTotal(categories, field, monthIdx) {
+  return categories.reduce((sum, cat) => {
+    const arr = cat[field] || [];
+    return sum + (arr[monthIdx] || 0);
+  }, 0);
+}
+
+/**
+ * Build per-category monthly detail rows for a single month.
+ * Returns one row per category with actual, budget, prior for that month.
+ */
+export function buildMonthlyCategoryDetail(categories, monthIdx) {
+  return categories.map((cat) => {
+    const actual = (cat.actualMonthly || [])[monthIdx] || 0;
+    const budget = (cat.budgetMonthly || [])[monthIdx] || 0;
+    const prior = (cat.priorYearMonthly || [])[monthIdx] || 0;
+    const hasActual = monthIdx < (cat.actualMonthly || []).length;
+
+    return {
+      id: cat.id,
+      name: cat.name,
+      location: cat.location,
+      actual: hasActual ? actual : null,
+      budget,
+      prior,
+      budgetVar: hasActual ? actual - budget : null,
+      budgetVarPct: hasActual && budget !== 0 ? ((actual - budget) / budget) * 100 : null,
+      priorVar: hasActual ? actual - prior : null,
+      priorVarPct: hasActual && prior !== 0 ? ((actual - prior) / prior) * 100 : null,
+    };
+  });
+}
+
+/**
  * Build category summary rows for a table.
  */
 export function buildCategorySummary(categories) {
