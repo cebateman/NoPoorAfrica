@@ -1,10 +1,11 @@
 import { NavLink, Outlet } from 'react-router-dom';
-import { BarChart3, Globe, DollarSign, Users } from 'lucide-react';
+import { BarChart3, Globe, DollarSign, Users, Upload } from 'lucide-react';
 
 const navItems = [
   { to: '/', label: 'Executive Overview', icon: BarChart3 },
   { to: '/us', label: 'US Operations', icon: DollarSign },
   { to: '/mozambique', label: 'Mozambique Operations', icon: Globe },
+  { to: '/upload', label: 'Upload Data', icon: Upload },
 ];
 
 export default function Layout() {
@@ -38,7 +39,7 @@ export default function Layout() {
         <Outlet />
       </main>
       <footer className="footer">
-        <p>No Poor Africa &middot; FY 2026 Financial Dashboard &middot; Data as of January 2026</p>
+        <p>No Poor Africa &middot; Financial Leadership Dashboard</p>
       </footer>
     </div>
   );

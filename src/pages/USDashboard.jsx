@@ -51,7 +51,10 @@ export default function USDashboard() {
   return (
     <div className="dashboard">
       <div className="dashboard__header">
-        <h2>US Operations — FY {FISCAL_YEAR}</h2>
+        <h2>
+          <DollarSign size={24} style={{ verticalAlign: 'middle', marginRight: 8 }} />
+          US Operations — FY {FISCAL_YEAR}
+        </h2>
         <p className="dashboard__subtitle">
           Budget vs. Actual vs. Prior Year &middot; Year-to-Date through January {FISCAL_YEAR}
         </p>

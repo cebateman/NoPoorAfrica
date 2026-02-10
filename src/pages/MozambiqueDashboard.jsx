@@ -1,11 +1,13 @@
-import { Globe, TrendingUp, TrendingDown, DollarSign, PieChart } from 'lucide-react';
+import { useState } from 'react';
+import { Globe, TrendingDown, DollarSign, PieChart } from 'lucide-react';
 import {
-  mzCategories,
-  mzRevenue,
+  mzCategories as defaultMzCategories,
+  mzRevenue as defaultMzRevenue,
   mzLeadership,
   MONTHS,
   FISCAL_YEAR,
 } from '../data/financialData';
+import { useData } from '../data/DataContext';
 import {
   ytdTotal,
   ytdBudgetTotal,
@@ -23,64 +25,86 @@ import BudgetProgressBar from '../components/BudgetProgressBar';
 import LeadershipList from '../components/LeadershipList';
 
 export default function MozambiqueDashboard() {
-  // Revenue / Funding KPIs
-  const revActual = ytdTotal(mzRevenue);
-  const revBudget = ytdBudgetTotal(mzRevenue);
-  const revPrior = ytdPriorYearTotal(mzRevenue);
-  const revAnnual = fullYearBudgetTotal(mzRevenue);
+  const { hasData, allCategories, centers, getCategoriesForCenter, dataYears } = useData();
+  const [selectedCenter, setSelectedCenter] = useState('');
 
-  // Expense KPIs
-  const expActual = ytdTotal(mzCategories);
-  const expBudget = ytdBudgetTotal(mzCategories);
-  const expPrior = ytdPriorYearTotal(mzCategories);
-  const expAnnual = fullYearBudgetTotal(mzCategories);
+  // Use uploaded data if available, otherwise fall back to defaults
+  const categories = hasData
+    ? (selectedCenter ? getCategoriesForCenter(selectedCenter) : allCategories)
+    : defaultMzCategories;
 
-  // Net
-  const netActual = revActual - expActual;
-  const netBudget = revBudget - expBudget;
-  const netPrior = revPrior - expPrior;
+  const year = hasData && dataYears.length > 0 ? dataYears[dataYears.length - 1] : FISCAL_YEAR;
+
+  // For Mozambique we show expenses only (no separate revenue view when using uploaded data)
+  // The uploaded data represents expense line items
+  const expActual = ytdTotal(categories);
+  const expBudget = ytdBudgetTotal(categories);
+  const expPrior = ytdPriorYearTotal(categories);
+  const expAnnual = fullYearBudgetTotal(categories);
+
+  // Determine months with data
+  const maxActualMonths = categories.reduce(
+    (max, cat) => Math.max(max, (cat.actualMonthly || []).length),
+    0,
+  );
+  const monthLabel =
+    maxActualMonths > 0
+      ? MONTHS[maxActualMonths - 1]
+      : 'January';
 
   // Table rows
-  const revenueRows = buildCategorySummary(mzRevenue);
-  const expenseRows = buildCategorySummary(mzCategories);
+  const expenseRows = buildCategorySummary(categories);
 
   // Chart data
-  const revenueChartData = buildMonthlyComparison(mzRevenue, MONTHS);
-  const expenseChartData = buildMonthlyComparison(mzCategories, MONTHS);
+  const expenseChartData = buildMonthlyComparison(categories, MONTHS);
+
+  // When using uploaded data, we don't have a separate revenue stream
+  // Show the funding view only with default data
+  const useDefaultRevenue = !hasData;
+  const mzRevenue = useDefaultRevenue ? defaultMzRevenue : [];
+  const revActual = useDefaultRevenue ? ytdTotal(mzRevenue) : 0;
+  const revBudget = useDefaultRevenue ? ytdBudgetTotal(mzRevenue) : 0;
+  const revPrior = useDefaultRevenue ? ytdPriorYearTotal(mzRevenue) : 0;
+  const revAnnual = useDefaultRevenue ? fullYearBudgetTotal(mzRevenue) : 0;
+
+  const netActual = useDefaultRevenue ? revActual - expActual : -expActual;
+  const netBudget = useDefaultRevenue ? revBudget - expBudget : -expBudget;
+  const netPrior = useDefaultRevenue ? revPrior - expPrior : -expPrior;
 
   return (
     <div className="dashboard">
       <div className="dashboard__header">
-        <h2>Mozambique Operations — FY {FISCAL_YEAR}</h2>
+        <h2>
+          <Globe size={24} style={{ verticalAlign: 'middle', marginRight: 8 }} />
+          Mozambique Operations — FY {year}
+        </h2>
         <p className="dashboard__subtitle">
-          Budget vs. Actual vs. Prior Year &middot; Year-to-Date through January {FISCAL_YEAR}
+          Budget vs. Actual vs. Prior Year &middot; Year-to-Date through {monthLabel} {year}
           <br />
           <span className="dashboard__note">All amounts shown in USD</span>
         </p>
       </div>
 
+      {/* Center filter */}
+      {hasData && centers.length > 1 && (
+        <div className="filter-bar">
+          <label htmlFor="center-filter">Center Location:</label>
+          <select
+            id="center-filter"
+            value={selectedCenter}
+            onChange={(e) => setSelectedCenter(e.target.value)}
+            className="filter-select"
+          >
+            <option value="">All Centers</option>
+            {centers.map((c) => (
+              <option key={c} value={c}>{c}</option>
+            ))}
+          </select>
+        </div>
+      )}
+
       {/* KPI Cards */}
       <div className="kpi-grid">
-        <KpiCard
-          title="YTD Funding Received"
-          amount={revActual}
-          icon={TrendingUp}
-          type="revenue"
-          comparisons={[
-            {
-              label: 'vs Budget',
-              value: variance(revActual, revBudget),
-              pct: variancePct(revActual, revBudget),
-              favorable: revActual >= revBudget,
-            },
-            {
-              label: 'vs Prior Year',
-              value: variance(revActual, revPrior),
-              pct: variancePct(revActual, revPrior),
-              favorable: revActual >= revPrior,
-            },
-          ]}
-        />
         <KpiCard
           title="YTD Program Expenses"
           amount={expActual}
@@ -102,75 +126,101 @@ export default function MozambiqueDashboard() {
           ]}
         />
         <KpiCard
-          title="YTD Net Position"
-          amount={netActual}
-          icon={DollarSign}
-          type={netActual >= 0 ? 'revenue' : 'expense'}
-          comparisons={[
-            {
-              label: 'vs Budget',
-              value: variance(netActual, netBudget),
-              pct: variancePct(netActual, netBudget),
-              favorable: netActual >= netBudget,
-            },
-            {
-              label: 'vs Prior Year',
-              value: variance(netActual, netPrior),
-              pct: variancePct(netActual, netPrior),
-              favorable: netActual >= netPrior,
-            },
-          ]}
-        />
-        <KpiCard
           title="Annual Program Budget"
           amount={expAnnual}
           icon={PieChart}
           type="neutral"
           comparisons={[
             {
-              label: 'Funding used',
-              value: revActual,
-              pct: variancePct(revActual, revAnnual),
+              label: 'Budget used',
+              value: expActual,
+              pct: expAnnual > 0 ? variancePct(expActual, expAnnual) : 0,
             },
             {
-              label: 'Expenses used',
-              value: expActual,
-              pct: variancePct(expActual, expAnnual),
+              label: 'Months reported',
+              value: maxActualMonths,
+              pct: (maxActualMonths / 12) * 100 - 100,
             },
           ]}
         />
+        {useDefaultRevenue && (
+          <>
+            <KpiCard
+              title="YTD Funding Received"
+              amount={revActual}
+              icon={DollarSign}
+              type="revenue"
+              comparisons={[
+                {
+                  label: 'vs Budget',
+                  value: variance(revActual, revBudget),
+                  pct: variancePct(revActual, revBudget),
+                  favorable: revActual >= revBudget,
+                },
+                {
+                  label: 'vs Prior Year',
+                  value: variance(revActual, revPrior),
+                  pct: variancePct(revActual, revPrior),
+                  favorable: revActual >= revPrior,
+                },
+              ]}
+            />
+            <KpiCard
+              title="YTD Net Position"
+              amount={netActual}
+              icon={DollarSign}
+              type={netActual >= 0 ? 'revenue' : 'expense'}
+              comparisons={[
+                {
+                  label: 'vs Budget',
+                  value: variance(netActual, netBudget),
+                  pct: variancePct(netActual, netBudget),
+                  favorable: netActual >= netBudget,
+                },
+                {
+                  label: 'vs Prior Year',
+                  value: variance(netActual, netPrior),
+                  pct: variancePct(netActual, netPrior),
+                  favorable: netActual >= netPrior,
+                },
+              ]}
+            />
+          </>
+        )}
       </div>
 
       {/* Charts */}
       <div className="chart-grid">
-        <MonthlyChart title="Monthly Funding: Budget vs Actual vs Prior Year" data={revenueChartData} />
-        <MonthlyChart title="Monthly Program Spend: Budget vs Actual vs Prior Year" data={expenseChartData} />
+        <MonthlyChart
+          title="Monthly Program Spend: Budget vs Actual vs Prior Year"
+          data={expenseChartData}
+        />
+        {useDefaultRevenue && (
+          <MonthlyChart
+            title="Monthly Funding: Budget vs Actual vs Prior Year"
+            data={buildMonthlyComparison(mzRevenue, MONTHS)}
+          />
+        )}
       </div>
 
       {/* Tables */}
-      <FinancialTable title="Funding Sources Detail" rows={revenueRows} isRevenue />
-      <FinancialTable title="Program Expense Detail" rows={expenseRows} isRevenue={false} />
+      <FinancialTable
+        title="Program Expense Detail by Category"
+        rows={expenseRows}
+        isRevenue={false}
+      />
+      {useDefaultRevenue && (
+        <FinancialTable
+          title="Funding Sources Detail"
+          rows={buildCategorySummary(mzRevenue)}
+          isRevenue
+        />
+      )}
 
       {/* Budget Progress */}
       <div className="section">
-        <h3 className="section__title">Annual Budget Utilization — Funding</h3>
-        {mzRevenue.map((cat) => {
-          const rows = buildCategorySummary([cat]);
-          return (
-            <BudgetProgressBar
-              key={cat.id}
-              label={cat.name}
-              actual={rows[0].ytdActual}
-              budget={cat.budgetAnnual}
-              priorYear={rows[0].fullPrior}
-            />
-          );
-        })}
-      </div>
-
-      <div className="section">
         <h3 className="section__title">Annual Budget Utilization — Program Expenses</h3>
-        {mzCategories.map((cat) => {
+        {categories.map((cat) => {
           const rows = buildCategorySummary([cat]);
           return (
             <BudgetProgressBar
