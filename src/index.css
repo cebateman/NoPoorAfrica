@@ -169,6 +169,42 @@ body {
   font-size: 12px;
 }
 
+.dashboard__empty {
+  text-align: center;
+  padding: 80px 24px;
+  color: var(--color-text-secondary);
+}
+
+.dashboard__empty svg {
+  margin-bottom: 16px;
+  opacity: 0.4;
+}
+
+.dashboard__empty h3 {
+  font-size: 20px;
+  color: var(--color-text);
+  margin-bottom: 8px;
+}
+
+.dashboard__empty p {
+  margin-bottom: 24px;
+}
+
+.btn--primary {
+  display: inline-block;
+  padding: 10px 24px;
+  background: var(--color-primary);
+  color: #fff;
+  border-radius: var(--radius);
+  text-decoration: none;
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.btn--primary:hover {
+  opacity: 0.9;
+}
+
 /* ── KPI Cards ── */
 .kpi-grid {
   display: grid;
