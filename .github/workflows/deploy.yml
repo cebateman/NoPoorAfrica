@@ -2,7 +2,7 @@ name: Deploy to GitHub Pages
 
 on:
   push:
-    branches: ['claude/financial-leadership-dashboard-2Dsmg']
+    branches: ['claude/financial-leadership-dashboard-2Dsmg', 'main']
 
 permissions:
   contents: read
