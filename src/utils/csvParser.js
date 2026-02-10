@@ -68,11 +68,16 @@ export function parseMappingCSV(text) {
     const expenseType = row['Expense Type'] || '';
 
     if (lineItem) {
-      mapping[lineItem.trim()] = {
+      // Store with both original and normalized (lowercase/trimmed) keys
+      // so lookups work even with casing or whitespace differences
+      const trimmed = lineItem.trim();
+      const entry = {
         account: account.trim(),
         subAccount: subAccount.trim(),
         expenseType: expenseType.trim(),
       };
+      mapping[trimmed] = entry;
+      mapping[trimmed.toLowerCase()] = entry;
     }
   });
 
@@ -115,7 +120,8 @@ export function parseDataCSV(text) {
  */
 export function applyMapping(dataRows, mapping) {
   return dataRows.map((row) => {
-    const mapped = mapping[row.lineItem];
+    // Try exact match first, then case-insensitive
+    const mapped = mapping[row.lineItem] || mapping[row.lineItem.toLowerCase()];
     return {
       ...row,
       expenseType: mapped ? mapped.expenseType : row.category,
