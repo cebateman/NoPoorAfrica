@@ -49,6 +49,9 @@ const PIE_COLORS = ['#2563eb', '#7c3aed', '#059669', '#d97706', '#dc2626', '#089
 
 // ── Dashboard section definitions ──
 const SECTIONS = [
+  { id: 'monthlyKpis',    label: 'Monthly KPI Cards',            group: 'Monthly Review' },
+  { id: 'monthlyBridge',  label: 'Monthly Budget Bridge',         group: 'Monthly Review' },
+  { id: 'monthlyDetail',  label: 'Monthly Category Breakdown',   group: 'Monthly Review' },
   { id: 'kpiRevenue',     label: 'KPI: YTD Revenue',             group: 'KPI Cards' },
   { id: 'kpiExpenses',    label: 'KPI: YTD Expenses',            group: 'KPI Cards' },
   { id: 'kpiNet',         label: 'KPI: Net Position',            group: 'KPI Cards' },
@@ -59,9 +62,6 @@ const SECTIONS = [
   { id: 'chartExpense',   label: 'Expense Bar Chart',            group: 'Charts' },
   { id: 'tableExpenses',  label: 'Expense Table',                group: 'Tables' },
   { id: 'tableRevenue',   label: 'Revenue Table',                group: 'Tables' },
-  { id: 'monthlyKpis',    label: 'Monthly KPI Cards',            group: 'Monthly Review' },
-  { id: 'monthlyBridge',  label: 'Monthly Budget Bridge',         group: 'Monthly Review' },
-  { id: 'monthlyDetail',  label: 'Monthly Category Breakdown',   group: 'Monthly Review' },
   { id: 'budgetExpenses', label: 'Budget Progress: Expenses',    group: 'Budget Progress' },
   { id: 'budgetRevenue',  label: 'Budget Progress: Revenue',     group: 'Budget Progress' },
 ];
@@ -408,115 +408,6 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* ── KPI Cards ── */}
-      {(show('kpiRevenue') || show('kpiExpenses') || show('kpiNet') || show('kpiBudget')) && (
-        <div className="kpi-grid">
-          {show('kpiRevenue') && activeRevenue.length > 0 && (
-            <KpiCard
-              title="YTD Revenue"
-              amount={revActual}
-              icon={TrendingUp}
-              type="revenue"
-              comparisons={[
-                { label: 'vs Budget', value: variance(revActual, revBudget), pct: variancePct(revActual, revBudget), favorable: revActual >= revBudget },
-                { label: 'vs Prior Year', value: variance(revActual, revPrior), pct: variancePct(revActual, revPrior), favorable: revActual >= revPrior },
-              ]}
-            />
-          )}
-          {show('kpiExpenses') && expenseCategories.length > 0 && (
-            <KpiCard
-              title="YTD Total Expenses"
-              amount={totalExpActual}
-              icon={TrendingDown}
-              type="expense"
-              comparisons={[
-                { label: 'vs Budget', value: variance(totalExpActual, totalExpBudget), pct: variancePct(totalExpActual, totalExpBudget), favorable: totalExpActual <= totalExpBudget },
-                { label: 'vs Prior Year', value: variance(totalExpActual, totalExpPrior), pct: variancePct(totalExpActual, totalExpPrior), favorable: totalExpActual <= totalExpPrior },
-              ]}
-            />
-          )}
-          {show('kpiNet') && (activeRevenue.length > 0 || expenseCategories.length > 0) && (
-            <KpiCard
-              title="YTD Net Position"
-              amount={netActual}
-              icon={DollarSign}
-              type={netActual >= 0 ? 'revenue' : 'expense'}
-              comparisons={[
-                { label: 'vs Budget', value: variance(netActual, netBudget), pct: variancePct(netActual, netBudget), favorable: netActual >= netBudget },
-                { label: 'vs Prior Year', value: variance(netActual, netPrior), pct: variancePct(netActual, netPrior), favorable: netActual >= netPrior },
-              ]}
-            />
-          )}
-          {show('kpiBudget') && totalExpAnnual > 0 && (
-            <KpiCard
-              title="Annual Expense Budget"
-              amount={totalExpAnnual}
-              icon={PieChartIcon}
-              type="neutral"
-              comparisons={[
-                { label: 'Used YTD', value: totalExpActual, pct: totalExpAnnual > 0 ? variancePct(totalExpActual, totalExpAnnual) : 0 },
-              ]}
-            />
-          )}
-        </div>
-      )}
-
-      {/* ── Full-width Timeline ── */}
-      {show('timeline') && timelineData.length > 0 && (
-        <TimelineChart
-          title="Expense Timeline: Prior Year Actuals → Current Actuals → Forward Budget"
-          data={timelineData}
-          actualsYear={actualsYear}
-          budgetYear={budgetYear}
-          priorYear={priorYear}
-        />
-      )}
-
-      {/* ── Program Breakdown Pie ── */}
-      {show('pieBreakdown') && pieData.length > 0 && (
-        <div className="chart-grid">
-          <div className="chart-container">
-            <h3 className="chart__title">Program Breakdown (YTD)</h3>
-            <ResponsiveContainer width="100%" height={280}>
-              <PieChart>
-                <Pie data={pieData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={100}
-                  label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`} labelLine>
-                  {pieData.map((_, i) => (
-                    <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
-                  ))}
-                </Pie>
-                <Tooltip formatter={(value) => format(value)} />
-                <Legend />
-              </PieChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-      )}
-
-      {/* ── Bar Charts ── */}
-      {(show('chartRevenue') || show('chartExpense')) && (
-        <div className="chart-grid">
-          {show('chartRevenue') && revenueChartData.length > 0 && (
-            <MonthlyChart
-              title="Revenue: Actual vs Prior Year"
-              data={revenueChartData}
-              actualsYear={revActualsYr}
-              budgetYear={null}
-              priorYear={revPriorYr}
-            />
-          )}
-          {show('chartExpense') && expenseChartData.length > 0 && (
-            <MonthlyChart
-              title="Expenses: Actual vs Prior Year"
-              data={expenseChartData}
-              actualsYear={actualsYear}
-              budgetYear={budgetYear}
-              priorYear={priorYear}
-            />
-          )}
-        </div>
-      )}
-
       {/* ── Monthly Business Review ── */}
       {(show('monthlyKpis') || show('monthlyBridge') || show('monthlyDetail')) && reviewMonthIdx >= 0 && (
         <div className="monthly-review">
@@ -759,6 +650,115 @@ export default function Dashboard() {
                 </table>
               </div>
             </div>
+          )}
+        </div>
+      )}
+
+      {/* ── KPI Cards ── */}
+      {(show('kpiRevenue') || show('kpiExpenses') || show('kpiNet') || show('kpiBudget')) && (
+        <div className="kpi-grid">
+          {show('kpiRevenue') && activeRevenue.length > 0 && (
+            <KpiCard
+              title="YTD Revenue"
+              amount={revActual}
+              icon={TrendingUp}
+              type="revenue"
+              comparisons={[
+                { label: 'vs Budget', value: variance(revActual, revBudget), pct: variancePct(revActual, revBudget), favorable: revActual >= revBudget },
+                { label: 'vs Prior Year', value: variance(revActual, revPrior), pct: variancePct(revActual, revPrior), favorable: revActual >= revPrior },
+              ]}
+            />
+          )}
+          {show('kpiExpenses') && expenseCategories.length > 0 && (
+            <KpiCard
+              title="YTD Total Expenses"
+              amount={totalExpActual}
+              icon={TrendingDown}
+              type="expense"
+              comparisons={[
+                { label: 'vs Budget', value: variance(totalExpActual, totalExpBudget), pct: variancePct(totalExpActual, totalExpBudget), favorable: totalExpActual <= totalExpBudget },
+                { label: 'vs Prior Year', value: variance(totalExpActual, totalExpPrior), pct: variancePct(totalExpActual, totalExpPrior), favorable: totalExpActual <= totalExpPrior },
+              ]}
+            />
+          )}
+          {show('kpiNet') && (activeRevenue.length > 0 || expenseCategories.length > 0) && (
+            <KpiCard
+              title="YTD Net Position"
+              amount={netActual}
+              icon={DollarSign}
+              type={netActual >= 0 ? 'revenue' : 'expense'}
+              comparisons={[
+                { label: 'vs Budget', value: variance(netActual, netBudget), pct: variancePct(netActual, netBudget), favorable: netActual >= netBudget },
+                { label: 'vs Prior Year', value: variance(netActual, netPrior), pct: variancePct(netActual, netPrior), favorable: netActual >= netPrior },
+              ]}
+            />
+          )}
+          {show('kpiBudget') && totalExpAnnual > 0 && (
+            <KpiCard
+              title="Annual Expense Budget"
+              amount={totalExpAnnual}
+              icon={PieChartIcon}
+              type="neutral"
+              comparisons={[
+                { label: 'Used YTD', value: totalExpActual, pct: totalExpAnnual > 0 ? variancePct(totalExpActual, totalExpAnnual) : 0 },
+              ]}
+            />
+          )}
+        </div>
+      )}
+
+      {/* ── Full-width Timeline ── */}
+      {show('timeline') && timelineData.length > 0 && (
+        <TimelineChart
+          title="Expense Timeline: Prior Year Actuals → Current Actuals → Forward Budget"
+          data={timelineData}
+          actualsYear={actualsYear}
+          budgetYear={budgetYear}
+          priorYear={priorYear}
+        />
+      )}
+
+      {/* ── Program Breakdown Pie ── */}
+      {show('pieBreakdown') && pieData.length > 0 && (
+        <div className="chart-grid">
+          <div className="chart-container">
+            <h3 className="chart__title">Program Breakdown (YTD)</h3>
+            <ResponsiveContainer width="100%" height={280}>
+              <PieChart>
+                <Pie data={pieData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={100}
+                  label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`} labelLine>
+                  {pieData.map((_, i) => (
+                    <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
+                  ))}
+                </Pie>
+                <Tooltip formatter={(value) => format(value)} />
+                <Legend />
+              </PieChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+      )}
+
+      {/* ── Bar Charts ── */}
+      {(show('chartRevenue') || show('chartExpense')) && (
+        <div className="chart-grid">
+          {show('chartRevenue') && revenueChartData.length > 0 && (
+            <MonthlyChart
+              title="Revenue: Actual vs Prior Year"
+              data={revenueChartData}
+              actualsYear={revActualsYr}
+              budgetYear={null}
+              priorYear={revPriorYr}
+            />
+          )}
+          {show('chartExpense') && expenseChartData.length > 0 && (
+            <MonthlyChart
+              title="Expenses: Actual vs Prior Year"
+              data={expenseChartData}
+              actualsYear={actualsYear}
+              budgetYear={budgetYear}
+              priorYear={priorYear}
+            />
           )}
         </div>
       )}
