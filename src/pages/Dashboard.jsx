@@ -232,37 +232,22 @@ export default function Dashboard() {
 
     const fmtAbs = (v) => format(Math.abs(v));
     const fmtVar = (r, tag) => `${r.name} (${r.variance > 0 ? '+' : ''}${format(r.variance)} vs ${tag})`;
-    const fmtNote = (n) => `${n.text.replace(/\.\s*$/, '')} (${format(n.amount)})`;
 
     let narrative = '';
-    const mentionedNames = new Set();
     if (totalVar === 0) {
       narrative = `In ${reviewMonthLabel}, total expenses came in exactly on budget at ${format(mMonthBudgetTotal)}.`;
     } else {
       const direction = totalVar > 0 ? 'above' : 'below';
-      const driverRows = (totalVar > 0 ? unfavorable : favorable).slice(0, 3);
-      const offsetRows = (totalVar > 0 ? favorable : unfavorable).slice(0, 2);
-      const drivers = driverRows.map((r) => fmtVar(r, 'budget'));
-      const offsets = offsetRows.map((r) => fmtVar(r, 'budget'));
-
-      [...driverRows, ...offsetRows].forEach((r) => mentionedNames.add(r.name));
+      const drivers = (totalVar > 0 ? unfavorable : favorable).slice(0, 3).map((r) => fmtVar(r, 'budget'));
+      const offsets = (totalVar > 0 ? favorable : unfavorable).slice(0, 2).map((r) => fmtVar(r, 'budget'));
 
       narrative = `In ${reviewMonthLabel}, expenses came in ${fmtAbs(totalVar)} ${direction} budget`;
       if (drivers.length > 0) narrative += `, driven by ${drivers.join(', ')}`;
       if (offsets.length > 0) narrative += `, partially offset by ${offsets.join(' and ')}`;
-
-      // Embed notes with amounts from mentioned categories
-      const embeddedNotes = [...driverRows, ...offsetRows]
-        .filter((r) => r.notes.length > 0)
-        .flatMap((r) => r.notes.map((n) => `${r.name}: ${fmtNote(n)}`));
-      if (embeddedNotes.length > 0) {
-        narrative += `, due to ${embeddedNotes.join('; ')}`;
-      }
-
       narrative += '.';
     }
 
-    return { baseTotal: mMonthBudgetTotal, actualTotal: mMonthExpTotal, totalVar, rows, narrative, mentionedNames };
+    return { baseTotal: mMonthBudgetTotal, actualTotal: mMonthExpTotal, totalVar, rows, narrative };
   }, [monthlyExpDetail, reviewMonthIdx, mMonthBudgetTotal, mMonthExpTotal, reviewMonthLabel, format]);
 
   // ── YoY Bridge ──
@@ -280,37 +265,22 @@ export default function Dashboard() {
 
     const fmtAbs = (v) => format(Math.abs(v));
     const fmtVar = (r) => `${r.name} (${r.variance > 0 ? '+' : ''}${format(r.variance)} YoY)`;
-    const fmtNote = (n) => `${n.text.replace(/\.\s*$/, '')} (${format(n.amount)})`;
 
     let narrative = '';
-    const mentionedNames = new Set();
     if (totalVar === 0) {
       narrative = `Year-over-year, ${reviewMonthLabel} expenses were flat at ${format(mMonthPriorTotal)}.`;
     } else {
       const direction = totalVar > 0 ? 'higher' : 'lower';
-      const driverRows = (totalVar > 0 ? increases : decreases).slice(0, 3);
-      const offsetRows = (totalVar > 0 ? decreases : increases).slice(0, 2);
-      const drivers = driverRows.map(fmtVar);
-      const offsets = offsetRows.map(fmtVar);
-
-      [...driverRows, ...offsetRows].forEach((r) => mentionedNames.add(r.name));
+      const drivers = (totalVar > 0 ? increases : decreases).slice(0, 3).map(fmtVar);
+      const offsets = (totalVar > 0 ? decreases : increases).slice(0, 2).map(fmtVar);
 
       narrative = `Year-over-year, ${reviewMonthLabel} expenses were ${fmtAbs(totalVar)} ${direction} than ${reviewPriorYr}`;
       if (drivers.length > 0) narrative += `, led by ${drivers.join(', ')}`;
       if (offsets.length > 0) narrative += `, partially offset by ${offsets.join(' and ')}`;
-
-      // Embed notes with amounts from mentioned categories
-      const embeddedNotes = [...driverRows, ...offsetRows]
-        .filter((r) => r.notes.length > 0)
-        .flatMap((r) => r.notes.map((n) => `${r.name}: ${fmtNote(n)}`));
-      if (embeddedNotes.length > 0) {
-        narrative += `, due to ${embeddedNotes.join('; ')}`;
-      }
-
       narrative += '.';
     }
 
-    return { baseTotal: mMonthPriorTotal, actualTotal: mMonthExpTotal, totalVar, rows, narrative, mentionedNames };
+    return { baseTotal: mMonthPriorTotal, actualTotal: mMonthExpTotal, totalVar, rows, narrative };
   }, [monthlyExpDetail, reviewMonthIdx, mMonthPriorTotal, mMonthExpTotal, reviewMonthLabel, reviewPriorYr, format]);
 
   // Available months for the selector
@@ -622,24 +592,20 @@ export default function Dashboard() {
                 {yoyBridgeData && <p>{yoyBridgeData.narrative}</p>}
               </div>
 
-              {/* Additional notes from categories not mentioned in the bridge narratives */}
+              {/* Notes from actuals with amounts */}
               {(() => {
-                const mentioned = new Set([
-                  ...(bridgeData?.mentionedNames || []),
-                  ...(yoyBridgeData?.mentionedNames || []),
-                ]);
-                const remaining = monthlyExpDetail
-                  .filter((r) => r.notes && r.notes.length > 0 && !mentioned.has(r.name))
+                const allNotes = monthlyExpDetail
+                  .filter((r) => r.notes && r.notes.length > 0)
                   .map((r) => ({ name: r.name, notes: r.notes }));
-                if (remaining.length === 0) return null;
+                if (allNotes.length === 0) return null;
                 return (
                   <div className="bridge__notes">
-                    <h4 className="bridge__notes-title">Additional Notes</h4>
+                    <h4 className="bridge__notes-title">Notes</h4>
                     <ul className="bridge__notes-list">
-                      {remaining.map((item) =>
+                      {allNotes.map((item) =>
                         item.notes.map((note, i) => (
                           <li key={`${item.name}-${i}`}>
-                            <strong>{item.name}:</strong> {note.text} ({format(note.amount)})
+                            <strong>{item.name} ({format(note.amount)}):</strong> {note.text}
                           </li>
                         ))
                       )}
