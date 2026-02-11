@@ -592,6 +592,28 @@ export default function Dashboard() {
                 {yoyBridgeData && <p>{yoyBridgeData.narrative}</p>}
               </div>
 
+              {/* Notes from actuals */}
+              {(() => {
+                const allNotes = monthlyExpDetail
+                  .filter((r) => r.notes && r.notes.length > 0)
+                  .map((r) => ({ name: r.name, notes: r.notes }));
+                if (allNotes.length === 0) return null;
+                return (
+                  <div className="bridge__notes">
+                    <h4 className="bridge__notes-title">Notes</h4>
+                    <ul className="bridge__notes-list">
+                      {allNotes.map((item) =>
+                        item.notes.map((note, i) => (
+                          <li key={`${item.name}-${i}`}>
+                            <strong>{item.name}:</strong> {note}
+                          </li>
+                        ))
+                      )}
+                    </ul>
+                  </div>
+                );
+              })()}
+
               {/* Side-by-side tables */}
               <div className="bridge__grid">
                 {/* Budget Bridge */}

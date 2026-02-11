@@ -234,6 +234,7 @@ export function buildMonthlyCategoryDetail(categories, monthIdx) {
     const budget = (cat.budgetMonthly || [])[monthIdx] || 0;
     const prior = (cat.priorYearMonthly || [])[monthIdx] || 0;
     const hasActual = monthIdx < (cat.actualMonthly || []).length;
+    const notes = (cat.notesByMonth && cat.notesByMonth[monthIdx]) || [];
 
     return {
       id: cat.id,
@@ -246,6 +247,7 @@ export function buildMonthlyCategoryDetail(categories, monthIdx) {
       budgetVarPct: hasActual && budget !== 0 ? ((actual - budget) / budget) * 100 : null,
       priorVar: hasActual ? actual - prior : null,
       priorVarPct: hasActual && prior !== 0 ? ((actual - prior) / prior) * 100 : null,
+      notes,
     };
   });
 }

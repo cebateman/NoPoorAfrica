@@ -1108,6 +1108,39 @@ body {
   margin-right: 4px;
 }
 
+/* ── Bridge Notes ── */
+.bridge__notes {
+  margin: 12px 0 16px;
+  padding: 12px 16px;
+  background: #fffbeb;
+  border-radius: var(--radius);
+  border-left: 3px solid #d97706;
+  font-size: 13px;
+}
+
+.bridge__notes-title {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  color: #92400e;
+  margin-bottom: 8px;
+}
+
+.bridge__notes-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  color: var(--color-text);
+  line-height: 1.5;
+}
+
+.bridge__notes-list strong {
+  color: var(--color-text);
+  font-weight: 600;
+}
+
 /* ═══════════════════════════════════════════════
    Print / PDF Styles
    ═══════════════════════════════════════════════ */
@@ -1265,6 +1298,12 @@ body {
 
   .bridge__table {
     font-size: 10px;
+  }
+
+  .bridge__notes {
+    font-size: 10px;
+    padding: 8px 12px;
+    margin: 8px 0 12px;
   }
 
   /* Budget progress */

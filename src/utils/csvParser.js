@@ -99,6 +99,9 @@ export function parseDataCSV(text) {
       // Find the MT amount column (contains "MT" in header)
       const mtKey = headers.find((h) => h.includes('MT') && !h.includes('USD')) || '';
 
+      // Find notes column (flexible naming)
+      const notesKey = headers.find((h) => /^notes?$/i.test(h.trim())) || '';
+
       return {
         centerLocation: row['Center Location'] || '',
         date: row['Date'] || '',
@@ -110,6 +113,7 @@ export function parseDataCSV(text) {
         subAccount: (row['Sub Account'] || '').trim(),
         amountMT: parseUSD(mtKey ? row[mtKey] : ''),
         amountUSD: parseUSD(usdKey ? row[usdKey] : ''),
+        notes: notesKey ? (row[notesKey] || '').trim() : '',
       };
     })
     .filter((r) => r.month > 0 && r.year > 0);
@@ -309,16 +313,24 @@ export function buildDashboardCategories(rows, budgetRows, priorYearRows) {
     // Build positional arrays: index 0 = Jan, index 1 = Feb, etc.
     // actualMonthly is truncated at the last month with data
     const actualMonthly = [];
+    const notesByMonth = {};
     for (let m = 1; m <= 12; m++) {
-      const actualSum = typeActuals
-        .filter((r) => r.month === m)
-        .reduce((s, r) => s + r.amountUSD, 0);
+      const monthActuals = typeActuals.filter((r) => r.month === m);
+      const actualSum = monthActuals.reduce((s, r) => s + r.amountUSD, 0);
       const budgetSum = typeBudget
         .filter((r) => r.month === m)
         .reduce((s, r) => s + r.amountUSD, 0);
       const priorSum = typePrior
         .filter((r) => r.month === m)
         .reduce((s, r) => s + r.amountUSD, 0);
+
+      // Collect non-empty notes for this month
+      const monthNotes = monthActuals
+        .map((r) => r.notes)
+        .filter(Boolean);
+      if (monthNotes.length > 0) {
+        notesByMonth[m - 1] = monthNotes; // 0-based index
+      }
 
       // Include actual values up to (and including) the last month with data
       if (m <= lastActualMonth) {
@@ -337,6 +349,7 @@ export function buildDashboardCategories(rows, budgetRows, priorYearRows) {
       budgetMonthly,
       actualMonthly,
       priorYearMonthly,
+      notesByMonth,
     };
   });
 }
