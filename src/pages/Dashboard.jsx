@@ -11,6 +11,7 @@ import {
   Calendar,
   Upload,
   Printer,
+  Info,
 } from 'lucide-react';
 import {
   ResponsiveContainer,
@@ -52,6 +53,7 @@ const SECTIONS = [
   { id: 'monthlyKpis',    label: 'Monthly KPI Cards',            group: 'Monthly Review' },
   { id: 'monthlyBridge',  label: 'Monthly Budget Bridge',         group: 'Monthly Review' },
   { id: 'monthlyDetail',  label: 'Monthly Category Breakdown',   group: 'Monthly Review' },
+  { id: 'restrictedFunds', label: 'Restricted Funds (FYI)',        group: 'KPI Cards' },
   { id: 'kpiRevenue',     label: 'KPI: YTD Revenue',             group: 'KPI Cards' },
   { id: 'kpiExpenses',    label: 'KPI: YTD Expenses',            group: 'KPI Cards' },
   { id: 'kpiNet',         label: 'KPI: Net Position',            group: 'KPI Cards' },
@@ -94,9 +96,9 @@ function saveSectionVisibility(visibility) {
 
 export default function Dashboard() {
   const {
-    hasData, hasRevenue, revenueCategories, allCategories, centers,
-    getCategoriesForCenter, dataYears, actualsYear, priorYear, budgetYear,
-    revenueCurrentYear, revenuePriorYear,
+    hasData, hasRevenue, revenueCategories, operatingRevenue, restrictedRevenue,
+    allCategories, centers, getCategoriesForCenter, dataYears, actualsYear,
+    priorYear, budgetYear, revenueCurrentYear, revenuePriorYear,
   } = useData();
   const { format } = useCurrency();
   const [selectedCenter, setSelectedCenter] = useState('');
@@ -128,8 +130,12 @@ export default function Dashboard() {
     setVisibility(next);
   }, []);
 
-  // Revenue from uploaded data
-  const activeRevenue = hasRevenue ? revenueCategories : [];
+  // Operating revenue (excludes restricted/designated funds like Family Restoration)
+  const activeRevenue = hasRevenue ? operatingRevenue : [];
+  // All revenue categories (including restricted) for the full revenue table/chart
+  const allRevenue = hasRevenue ? revenueCategories : [];
+  // Restricted / designated funds shown as FYI only
+  const activeRestricted = hasRevenue ? restrictedRevenue : [];
 
   // Expense categories from uploaded data
   const expenseCategories = hasData
@@ -157,21 +163,25 @@ export default function Dashboard() {
   const totalExpPrior = ytdPriorYearTotal(expenseCategories);
   const totalExpAnnual = fullYearBudgetTotal(expenseCategories);
 
-  // Net
+  // Net (operating revenue only — restricted funds excluded)
   const netActual = revActual - totalExpActual;
   const netBudget = revBudget - totalExpBudget;
   const netPrior = revPrior - totalExpPrior;
 
+  // Restricted / designated fund totals (FYI)
+  const restrictedActual = ytdTotal(activeRestricted);
+  const restrictedPrior = ytdPriorYearTotal(activeRestricted);
+
   // ── Table rows ──
-  const revenueRows = buildCategorySummary(activeRevenue);
+  const revenueRows = buildCategorySummary(allRevenue);
   const expRows = buildCategorySummary(expenseCategories);
 
   // ── Charts ──
   const revActualsYr = revenueCurrentYear;
   const revPriorYr = revenuePriorYear;
 
-  const revenueChartData = activeRevenue.length > 0
-    ? buildMonthlyComparison(activeRevenue, MONTHS, {
+  const revenueChartData = allRevenue.length > 0
+    ? buildMonthlyComparison(allRevenue, MONTHS, {
         actualsYear: revActualsYr, budgetYear: null, priorYear: revPriorYr,
       })
     : [];
@@ -211,6 +221,9 @@ export default function Dashboard() {
   const mMonthRev = reviewMonthIdx >= 0 ? monthTotal(activeRevenue, 'actualMonthly', reviewMonthIdx) : 0;
   const mMonthRevBudget = reviewMonthIdx >= 0 ? monthTotal(activeRevenue, 'budgetMonthly', reviewMonthIdx) : 0;
   const mMonthRevPrior = reviewMonthIdx >= 0 ? monthTotal(activeRevenue, 'priorYearMonthly', reviewMonthIdx) : 0;
+
+  // Restricted funds for the selected month (FYI only)
+  const mMonthRestricted = reviewMonthIdx >= 0 ? monthTotal(activeRestricted, 'actualMonthly', reviewMonthIdx) : 0;
 
   const mMonthNet = mMonthRev - mMonthExpTotal;
 
@@ -654,6 +667,36 @@ export default function Dashboard() {
         </div>
       )}
 
+      {/* ── Restricted Funds FYI ── */}
+      {show('restrictedFunds') && activeRestricted.length > 0 && restrictedActual > 0 && (
+        <div className="restricted-funds-callout">
+          <div className="restricted-funds-callout__icon">
+            <Info size={18} />
+          </div>
+          <div className="restricted-funds-callout__content">
+            <h4 className="restricted-funds-callout__title">Designated Funds — For Information Only</h4>
+            <p className="restricted-funds-callout__desc">
+              The following are separate projects and are <strong>not</strong> included in operating revenue or net position.
+            </p>
+            <div className="restricted-funds-callout__items">
+              {activeRestricted.map((cat) => {
+                const catYtd = ytdTotal([cat]);
+                const catPrior = ytdPriorYearTotal([cat]);
+                return (
+                  <div key={cat.id} className="restricted-funds-callout__item">
+                    <span className="restricted-funds-callout__name">{cat.name}</span>
+                    <span className="restricted-funds-callout__amount">{format(catYtd)} YTD</span>
+                    {catPrior > 0 && (
+                      <span className="restricted-funds-callout__prior">({format(catPrior)} prior year)</span>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ── KPI Cards ── */}
       {(show('kpiRevenue') || show('kpiExpenses') || show('kpiNet') || show('kpiBudget')) && (
         <div className="kpi-grid">
@@ -775,9 +818,10 @@ export default function Dashboard() {
       {/* ── Revenue Table ── */}
       {show('tableRevenue') && revenueRows.length > 0 && (
         <FinancialTable
-          title="Revenue Detail"
+          title="Revenue Detail (All Sources)"
           rows={revenueRows}
           isRevenue
+          restrictedIds={activeRestricted.map((c) => c.id)}
         />
       )}
 
@@ -801,10 +845,10 @@ export default function Dashboard() {
       )}
 
       {/* ── Budget Progress: Revenue ── */}
-      {show('budgetRevenue') && activeRevenue.length > 0 && (
+      {show('budgetRevenue') && allRevenue.length > 0 && (
         <div className="section">
           <h3 className="section__title">Annual Budget Utilization — Revenue</h3>
-          {activeRevenue.filter((cat) => cat.budgetAnnual > 0).map((cat) => {
+          {allRevenue.filter((cat) => cat.budgetAnnual > 0).map((cat) => {
             const rows = buildCategorySummary([cat]);
             return (
               <BudgetProgressBar

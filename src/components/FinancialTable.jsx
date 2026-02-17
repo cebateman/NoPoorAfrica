@@ -1,7 +1,7 @@
 import { formatPct } from '../utils/calculations';
 import { useCurrency } from '../data/CurrencyContext';
 
-export default function FinancialTable({ title, rows, isRevenue }) {
+export default function FinancialTable({ title, rows, isRevenue, restrictedIds = [] }) {
   const { format } = useCurrency();
 
   const isFavorable = (variance, isRevenueRow) =>
@@ -42,10 +42,13 @@ export default function FinancialTable({ title, rows, isRevenue }) {
             </tr>
           </thead>
           <tbody>
-            {rows.map((row) => (
-              <tr key={row.id}>
+            {rows.map((row) => {
+              const isRestricted = restrictedIds.includes(row.id);
+              return (
+              <tr key={row.id} className={isRestricted ? 'fin-table__row--restricted' : ''}>
                 <td className="fin-table__category">
                   {row.name}
+                  {isRestricted && <span className="restricted-tag">Designated</span>}
                   {row.location && <span className={`location-tag location-tag--${row.location.toLowerCase()}`}>{row.location}</span>}
                 </td>
                 <td>{format(row.ytdActual)}</td>
@@ -66,7 +69,8 @@ export default function FinancialTable({ title, rows, isRevenue }) {
                 <td>{format(row.annualBudget)}</td>
                 <td>{row.pctOfAnnualBudget.toFixed(1)}%</td>
               </tr>
-            ))}
+              );
+            })}
           </tbody>
           <tfoot>
             <tr className="fin-table__total-row">

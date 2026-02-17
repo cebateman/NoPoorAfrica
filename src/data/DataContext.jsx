@@ -21,6 +21,14 @@ const STORAGE_KEYS = {
 };
 
 /**
+ * Revenue categories that are restricted / designated funds.
+ * These are tracked separately as FYI and excluded from operating
+ * revenue totals so they don't offset Girls Sponsorship expenses.
+ * Matching is case-insensitive and uses "includes" for flexibility.
+ */
+const RESTRICTED_REVENUE_PATTERNS = ['family restoration'];
+
+/**
  * Load raw CSV text from localStorage.
  */
 function loadStored(key) {
@@ -121,6 +129,20 @@ export function DataProvider({ children }) {
     () => buildRevenueCategories(revenueCurrentRows, revenuePriorRows),
     [revenueCurrentRows, revenuePriorRows],
   );
+
+  // Split revenue into operating (counts toward KPIs) and restricted (FYI only).
+  // Restricted funds (e.g. Family Restoration Project) are a separate project
+  // and should not offset Girls Sponsorship program expenses.
+  const { operatingRevenue, restrictedRevenue } = useMemo(() => {
+    const isRestricted = (cat) =>
+      RESTRICTED_REVENUE_PATTERNS.some((p) =>
+        cat.name.toLowerCase().includes(p),
+      );
+    return {
+      operatingRevenue: revenueCategories.filter((c) => !isRestricted(c)),
+      restrictedRevenue: revenueCategories.filter((c) => isRestricted(c)),
+    };
+  }, [revenueCategories]);
 
   // Determine budget year from budget rows
   const budgetYear = useMemo(() => {
@@ -231,6 +253,8 @@ export function DataProvider({ children }) {
     revenuePriorYear,
     revenueYears,
     revenueCategories,
+    operatingRevenue,
+    restrictedRevenue,
     revenueCurrentRows,
     revenuePriorRows,
 
