@@ -1232,7 +1232,7 @@ body {
    Print / PDF Styles
    ═══════════════════════════════════════════════ */
 @media print {
-  /* Hide interactive / non-printable elements */
+  /* ── Hide interactive / non-printable elements ── */
   .no-print,
   .settings-panel,
   .filter-bar,
@@ -1242,7 +1242,7 @@ body {
     display: none !important;
   }
 
-  /* Reset page layout */
+  /* ── Page setup ── */
   * {
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
@@ -1258,7 +1258,7 @@ body {
     font-size: 11px;
   }
 
-  /* Flatten layout — remove shadows, max-width */
+  /* ── Layout resets ── */
   .layout {
     max-width: 100%;
   }
@@ -1268,7 +1268,8 @@ body {
     box-shadow: none;
     border-bottom: 2px solid var(--color-text);
     padding: 0 0 8px;
-    margin-bottom: 12px;
+    margin-bottom: 8px;
+    position: static; /* un-sticky so it doesn't repeat or eat space */
   }
 
   .header h1 {
@@ -1284,11 +1285,11 @@ body {
   }
 
   .dashboard {
-    gap: 12px;
+    gap: 10px;
   }
 
   .dashboard__header {
-    margin-bottom: 4px;
+    margin-bottom: 2px;
   }
 
   .dashboard__header-top h2 {
@@ -1299,26 +1300,38 @@ body {
     font-size: 11px;
   }
 
-  /* KPI cards — tighten */
+  /* ── Section titles — never orphan at page bottom ── */
+  .section__title,
+  .fin-table__title,
+  .chart__title,
+  .bridge__subtitle {
+    break-after: avoid;
+  }
+
+  /* ── KPI Cards ── */
   .kpi-grid {
     gap: 8px;
     grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    break-inside: avoid;
   }
 
   .kpi-card {
     padding: 10px 12px;
     box-shadow: none;
     border: 1px solid var(--color-border);
+    break-inside: avoid;
   }
 
   .kpi-card__amount {
     font-size: 18px;
+    margin-bottom: 6px;
   }
 
-  /* Charts — ensure they render and fit */
+  /* ── Charts ── */
   .chart-grid {
     grid-template-columns: 1fr 1fr;
-    gap: 12px;
+    gap: 10px;
+    break-inside: avoid;
   }
 
   .chart-container,
@@ -1339,12 +1352,12 @@ body {
     min-height: 250px !important;
   }
 
-  /* Tables — compact for print */
+  /* ── Tables ── */
   .fin-table-container {
     box-shadow: none;
     border: 1px solid var(--color-border);
     padding: 10px;
-    break-inside: avoid;
+    /* Large tables are allowed to span pages — rows and headers handle breaks */
   }
 
   .fin-table {
@@ -1360,15 +1373,52 @@ body {
     font-size: 12px;
   }
 
-  /* Monthly review */
+  /* Repeat column headers on every page when a table spans pages */
+  .fin-table thead {
+    display: table-header-group;
+  }
+
+  .fin-table tfoot {
+    display: table-footer-group;
+  }
+
+  /* Keep individual rows together — never split a row across pages */
+  .fin-table tr {
+    break-inside: avoid;
+  }
+
+  /* Total row should stay with at least the last body row */
+  .fin-table__total-row {
+    break-before: avoid;
+  }
+
+  /* ── Monthly Business Review ──
+     This section is large (KPIs + bridges + detail table), so we let
+     the browser break BETWEEN sub-sections but keep each sub-section
+     intact.  The outer wrapper intentionally does NOT use break-inside:
+     avoid — that would force the entire review onto one page and cause
+     ugly overflow breaks. */
   .monthly-review {
     box-shadow: none;
     border: 1px solid var(--color-border);
     padding: 12px;
-    break-inside: avoid;
   }
 
-  /* Bridge tables */
+  .monthly-review__header {
+    break-after: avoid; /* keep title attached to first sub-section */
+  }
+
+  /* Each sub-section inside the review stays together */
+  .monthly-review > .kpi-grid {
+    break-inside: avoid;
+    margin-bottom: 8px;
+  }
+
+  .monthly-review .fin-table-container {
+    break-before: auto; /* allow page break before category table */
+  }
+
+  /* ── Budget Bridge ── */
   .bridge {
     break-inside: avoid;
   }
@@ -1376,11 +1426,11 @@ body {
   .bridge__narrative {
     font-size: 11px;
     padding: 8px 12px;
-    margin: 8px 0 12px;
+    margin: 8px 0 10px;
   }
 
   .bridge__grid {
-    gap: 16px;
+    gap: 12px;
   }
 
   .bridge__table {
@@ -1390,29 +1440,49 @@ body {
   .bridge__notes {
     font-size: 10px;
     padding: 8px 12px;
-    margin: 8px 0 12px;
+    margin: 8px 0 10px;
   }
 
-  /* Budget progress */
+  /* ── Restricted Funds Callout ── */
+  .restricted-funds-callout {
+    break-inside: avoid;
+    padding: 10px 14px;
+  }
+
+  .restricted-funds-callout__title {
+    font-size: 12px;
+  }
+
+  .restricted-funds-callout__desc {
+    font-size: 11px;
+  }
+
+  /* ── Budget Progress ── */
   .section {
+    box-shadow: none;
+    border: 1px solid var(--color-border);
+    padding: 12px;
+    /* Section can span pages — individual bars are kept together */
+  }
+
+  .section__title {
+    font-size: 12px;
+    margin-bottom: 10px;
+  }
+
+  .progress-bar-row {
     break-inside: avoid;
   }
 
-  /* Page break hints — try to keep major sections together */
-  .kpi-grid,
-  .chart-grid {
-    break-inside: avoid;
-  }
-
-  /* Print date stamp in footer area */
+  /* ── Print date stamp ── */
   .dashboard::after {
     content: "Printed on " attr(data-print-date);
     display: block;
     text-align: right;
     font-size: 9px;
     color: #999;
-    margin-top: 16px;
-    padding-top: 8px;
+    margin-top: 12px;
+    padding-top: 6px;
     border-top: 1px solid #ddd;
   }
 }
