@@ -144,7 +144,7 @@ export function DataProvider({ children }) {
       unsubData();
       unsubSettings();
     };
-  }, [user]);
+  }, [user, isAdmin]);
 
   // ── Admin: push CSV data to Firestore when uploading ──
   const syncToFirestore = useCallback(async (updates) => {
