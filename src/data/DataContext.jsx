@@ -84,6 +84,8 @@ export function DataProvider({ children }) {
       return;
     }
 
+    let didInitialSync = false;
+
     // Subscribe to CSV data changes
     const unsubData = onSnapshot(
       doc(db, 'appData', 'csvFiles'),
@@ -95,6 +97,27 @@ export function DataProvider({ children }) {
           if (data.budgetCSV !== undefined) setBudgetCSV((prev) => data.budgetCSV !== prev ? data.budgetCSV : prev);
           if (data.actualsCSV !== undefined) setActualsCSV((prev) => data.actualsCSV !== prev ? data.actualsCSV : prev);
           if (data.revenueCSV !== undefined) setRevenueCSV((prev) => data.revenueCSV !== prev ? data.revenueCSV : prev);
+        }
+
+        // On first snapshot, if admin has localStorage data that Firestore is missing, push it up.
+        // This handles data uploaded before auth was added.
+        if (!didInitialSync && isAdmin) {
+          didInitialSync = true;
+          const fsData = snap.exists() ? snap.data() : {};
+          const updates = {};
+          const m = loadStored(STORAGE_KEYS.mapping);
+          const b = loadStored(STORAGE_KEYS.budget);
+          const a = loadStored(STORAGE_KEYS.actuals);
+          const r = loadStored(STORAGE_KEYS.revenue);
+          if (m && !fsData.mappingCSV) updates.mappingCSV = m;
+          if (b && !fsData.budgetCSV) updates.budgetCSV = b;
+          if (a && !fsData.actualsCSV) updates.actualsCSV = a;
+          if (r && !fsData.revenueCSV) updates.revenueCSV = r;
+          if (Object.keys(updates).length > 0) {
+            setDoc(doc(db, 'appData', 'csvFiles'), updates, { merge: true }).catch((err) =>
+              console.error('Error pushing localStorage data to Firestore:', err),
+            );
+          }
         }
         setFirestoreReady(true);
       },
