@@ -509,7 +509,7 @@ export default function Dashboard() {
                       {allNotes.map((item) =>
                         item.notes.map((note, i) => (
                           <li key={`${item.name}-${i}`}>
-                            <strong>{item.name} ({format(note.amount)}):</strong> {note.text}
+                            <strong>{note.lineItem || item.name}{note.lineItem ? ` in the ${item.name} category` : ''}, ({format(note.amount)}):</strong> {note.text}
                           </li>
                         ))
                       )}

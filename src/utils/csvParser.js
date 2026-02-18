@@ -324,10 +324,10 @@ export function buildDashboardCategories(rows, budgetRows, priorYearRows) {
         .filter((r) => r.month === m)
         .reduce((s, r) => s + r.amountUSD, 0);
 
-      // Collect non-empty notes for this month (with their amounts)
+      // Collect non-empty notes for this month (with their amounts and line items)
       const monthNotes = monthActuals
         .filter((r) => r.notes)
-        .map((r) => ({ text: r.notes, amount: r.amountUSD }));
+        .map((r) => ({ text: r.notes, amount: r.amountUSD, lineItem: r.lineItem || '' }));
       if (monthNotes.length > 0) {
         notesByMonth[m - 1] = monthNotes; // 0-based index
       }
