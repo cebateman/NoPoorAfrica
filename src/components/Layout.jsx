@@ -1,20 +1,19 @@
 import { NavLink, Outlet } from 'react-router-dom';
-import { BarChart3, Users, Upload } from 'lucide-react';
+import { BarChart3, Upload, LogOut, Shield, User } from 'lucide-react';
 import { useCurrency } from '../data/CurrencyContext';
-
-const navItems = [
-  { to: '/', label: 'Dashboard', icon: BarChart3 },
-  { to: '/upload', label: 'Upload Data', icon: Upload },
-];
+import { useAuth } from '../data/AuthContext';
 
 export default function Layout() {
   const { currency, toggle } = useCurrency();
+  const { profile, isAdmin, logout, authEnabled } = useAuth();
 
   return (
     <div className="layout">
       <header className="header">
         <div className="header-brand">
-          <Users size={28} />
+          <div className="header-brand__icon">
+            {isAdmin ? <Shield size={28} /> : <User size={28} />}
+          </div>
           <div>
             <h1>No Poor Africa</h1>
             <span className="header-subtitle">Financial Leadership Dashboard</span>
@@ -22,19 +21,27 @@ export default function Layout() {
         </div>
         <div className="header-right">
           <nav className="nav">
-            {navItems.map(({ to, label, icon: Icon }) => (
+            <NavLink
+              to="/"
+              end
+              className={({ isActive }) =>
+                `nav-link ${isActive ? 'nav-link--active' : ''}`
+              }
+            >
+              <BarChart3 size={16} />
+              Dashboard
+            </NavLink>
+            {isAdmin && (
               <NavLink
-                key={to}
-                to={to}
-                end={to === '/'}
+                to="/upload"
                 className={({ isActive }) =>
                   `nav-link ${isActive ? 'nav-link--active' : ''}`
                 }
               >
-                <Icon size={16} />
-                {label}
+                <Upload size={16} />
+                Upload Data
               </NavLink>
-            ))}
+            )}
           </nav>
           <button
             className="currency-toggle"
@@ -45,6 +52,23 @@ export default function Layout() {
             <span className="currency-toggle__divider">/</span>
             <span className={currency === 'MZN' ? 'currency-toggle__active' : ''}>MZN</span>
           </button>
+          {authEnabled && profile && (
+            <div className="user-info">
+              <span className="user-info__name" title={profile.email}>
+                {profile.displayName || profile.email}
+              </span>
+              <span className={`user-info__role user-info__role--${profile.role}`}>
+                {profile.role}
+              </span>
+              <button
+                className="user-info__logout"
+                onClick={logout}
+                title="Sign out"
+              >
+                <LogOut size={14} />
+              </button>
+            </div>
+          )}
         </div>
       </header>
       <main className="main">

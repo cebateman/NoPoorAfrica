@@ -10,6 +10,9 @@ import {
   getDataMonths,
   getDataYears,
 } from '../utils/csvParser';
+import { doc, setDoc, onSnapshot } from 'firebase/firestore';
+import { db, isFirebaseConfigured } from '../firebase';
+import { useAuth } from './AuthContext';
 
 const DataContext = createContext(null);
 
@@ -51,22 +54,94 @@ function saveStored(key, value) {
 }
 
 export function DataProvider({ children }) {
+  const { isAdmin, user } = useAuth();
+
   // Raw CSV text storage
   const [mappingCSV, setMappingCSV] = useState(() => loadStored(STORAGE_KEYS.mapping));
   const [budgetCSV, setBudgetCSV] = useState(() => loadStored(STORAGE_KEYS.budget));
   const [actualsCSV, setActualsCSV] = useState(() => loadStored(STORAGE_KEYS.actuals));
   const [revenueCSV, setRevenueCSV] = useState(() => loadStored(STORAGE_KEYS.revenue));
 
+  // Dashboard settings synced via Firestore (admin writes, viewers read)
+  const [sharedSettings, setSharedSettings] = useState(null);
+  const [firestoreReady, setFirestoreReady] = useState(!isFirebaseConfigured);
+
   // Clean up old priorYear key from localStorage
   useEffect(() => {
     try { localStorage.removeItem('npa_prior_year_csv'); } catch { /* noop */ }
   }, []);
 
-  // Persist to localStorage on change
+  // Persist to localStorage on change (local cache for both admin and viewers)
   useEffect(() => { saveStored(STORAGE_KEYS.mapping, mappingCSV); }, [mappingCSV]);
   useEffect(() => { saveStored(STORAGE_KEYS.budget, budgetCSV); }, [budgetCSV]);
   useEffect(() => { saveStored(STORAGE_KEYS.actuals, actualsCSV); }, [actualsCSV]);
   useEffect(() => { saveStored(STORAGE_KEYS.revenue, revenueCSV); }, [revenueCSV]);
+
+  // ── Firestore: real-time sync for shared data ──
+  useEffect(() => {
+    if (!isFirebaseConfigured || !db || !user) {
+      setFirestoreReady(true);
+      return;
+    }
+
+    // Subscribe to CSV data changes
+    const unsubData = onSnapshot(
+      doc(db, 'appData', 'csvFiles'),
+      (snap) => {
+        if (snap.exists()) {
+          const data = snap.data();
+          // Only update state if data differs (prevents loops for admin)
+          if (data.mappingCSV !== undefined) setMappingCSV((prev) => data.mappingCSV !== prev ? data.mappingCSV : prev);
+          if (data.budgetCSV !== undefined) setBudgetCSV((prev) => data.budgetCSV !== prev ? data.budgetCSV : prev);
+          if (data.actualsCSV !== undefined) setActualsCSV((prev) => data.actualsCSV !== prev ? data.actualsCSV : prev);
+          if (data.revenueCSV !== undefined) setRevenueCSV((prev) => data.revenueCSV !== prev ? data.revenueCSV : prev);
+        }
+        setFirestoreReady(true);
+      },
+      (err) => {
+        console.error('Firestore CSV sync error:', err);
+        setFirestoreReady(true);
+      },
+    );
+
+    // Subscribe to dashboard settings changes
+    const unsubSettings = onSnapshot(
+      doc(db, 'appData', 'dashboardSettings'),
+      (snap) => {
+        if (snap.exists()) {
+          setSharedSettings(snap.data());
+        }
+      },
+      (err) => {
+        console.error('Firestore settings sync error:', err);
+      },
+    );
+
+    return () => {
+      unsubData();
+      unsubSettings();
+    };
+  }, [user]);
+
+  // ── Admin: push CSV data to Firestore when uploading ──
+  const syncToFirestore = useCallback(async (updates) => {
+    if (!isFirebaseConfigured || !db || !isAdmin) return;
+    try {
+      await setDoc(doc(db, 'appData', 'csvFiles'), updates, { merge: true });
+    } catch (err) {
+      console.error('Error syncing to Firestore:', err);
+    }
+  }, [isAdmin]);
+
+  // ── Admin: save dashboard settings to Firestore ──
+  const saveDashboardSettings = useCallback(async (settings) => {
+    if (!isFirebaseConfigured || !db || !isAdmin) return;
+    try {
+      await setDoc(doc(db, 'appData', 'dashboardSettings'), settings, { merge: true });
+    } catch (err) {
+      console.error('Error saving dashboard settings:', err);
+    }
+  }, [isAdmin]);
 
   // Parse mapping
   const mapping = mappingCSV ? parseMappingCSV(mappingCSV) : {};
@@ -203,11 +278,26 @@ export function DataProvider({ children }) {
   // Build all-center categories
   const allCategories = buildDashboardCategories(actualsRows, filteredBudgetRows, priorYearRows);
 
-  // Upload handlers
-  const uploadMapping = useCallback((text) => setMappingCSV(text), []);
-  const uploadBudget = useCallback((text) => setBudgetCSV(text), []);
-  const uploadActuals = useCallback((text) => setActualsCSV(text), []);
-  const uploadRevenue = useCallback((text) => setRevenueCSV(text), []);
+  // Upload handlers — admin syncs to Firestore, local always saves to localStorage
+  const uploadMapping = useCallback((text) => {
+    setMappingCSV(text);
+    syncToFirestore({ mappingCSV: text });
+  }, [syncToFirestore]);
+
+  const uploadBudget = useCallback((text) => {
+    setBudgetCSV(text);
+    syncToFirestore({ budgetCSV: text });
+  }, [syncToFirestore]);
+
+  const uploadActuals = useCallback((text) => {
+    setActualsCSV(text);
+    syncToFirestore({ actualsCSV: text });
+  }, [syncToFirestore]);
+
+  const uploadRevenue = useCallback((text) => {
+    setRevenueCSV(text);
+    syncToFirestore({ revenueCSV: text });
+  }, [syncToFirestore]);
 
   const clearAll = useCallback(() => {
     setMappingCSV('');
@@ -217,15 +307,18 @@ export function DataProvider({ children }) {
     Object.values(STORAGE_KEYS).forEach((k) => {
       try { localStorage.removeItem(k); } catch { /* noop */ }
     });
-  }, []);
+    syncToFirestore({ mappingCSV: '', budgetCSV: '', actualsCSV: '', revenueCSV: '' });
+  }, [syncToFirestore]);
 
   const clearFile = useCallback((type) => {
     const setters = { mapping: setMappingCSV, budget: setBudgetCSV, actuals: setActualsCSV, revenue: setRevenueCSV };
+    const firestoreKeys = { mapping: 'mappingCSV', budget: 'budgetCSV', actuals: 'actualsCSV', revenue: 'revenueCSV' };
     if (setters[type]) {
       setters[type]('');
       try { localStorage.removeItem(STORAGE_KEYS[type]); } catch { /* noop */ }
+      syncToFirestore({ [firestoreKeys[type]]: '' });
     }
-  }, []);
+  }, [syncToFirestore]);
 
   const value = {
     // State
@@ -267,6 +360,11 @@ export function DataProvider({ children }) {
     // Row counts for the full (unsplit) data
     totalActualsRowCount: allActualsRows.length,
     totalRevenueRowCount: allRevenueRows.length,
+
+    // Shared dashboard settings (Firestore)
+    sharedSettings,
+    saveDashboardSettings,
+    firestoreReady,
 
     // Actions
     uploadMapping,

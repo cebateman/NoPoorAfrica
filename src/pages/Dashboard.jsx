@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useEffect } from 'react';
 import {
   BarChart3,
   TrendingUp,
@@ -14,6 +14,10 @@ import {
   Info,
   ChevronUp,
   ChevronDown,
+  UserPlus,
+  Trash2,
+  Users,
+  Shield,
 } from 'lucide-react';
 import {
   ResponsiveContainer,
@@ -29,6 +33,7 @@ import {
 } from '../data/financialData';
 import { useData } from '../data/DataContext';
 import { useCurrency } from '../data/CurrencyContext';
+import { useAuth } from '../data/AuthContext';
 import {
   ytdTotal,
   ytdBudgetTotal,
@@ -137,43 +142,235 @@ function saveSectionOrder(order) {
   } catch { /* noop */ }
 }
 
+// ── Admin User Management Panel ──
+function UserManagementPanel({ createViewerAccount, listUsers, removeUser }) {
+  const [users, setUsers] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [newEmail, setNewEmail] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [newName, setNewName] = useState('');
+  const [creating, setCreating] = useState(false);
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
+
+  const fetchUsers = useCallback(async () => {
+    setLoading(true);
+    const list = await listUsers();
+    setUsers(list);
+    setLoading(false);
+  }, [listUsers]);
+
+  useEffect(() => { fetchUsers(); }, [fetchUsers]);
+
+  const handleCreate = useCallback(async (e) => {
+    e.preventDefault();
+    setError('');
+    setSuccess('');
+    if (!newEmail.trim() || !newPassword.trim()) {
+      setError('Email and password are required.');
+      return;
+    }
+    if (newPassword.length < 6) {
+      setError('Password must be at least 6 characters.');
+      return;
+    }
+    setCreating(true);
+    try {
+      await createViewerAccount(newEmail.trim(), newPassword, newName.trim());
+      setSuccess(`Account created for ${newEmail.trim()}`);
+      setNewEmail('');
+      setNewPassword('');
+      setNewName('');
+      fetchUsers();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setCreating(false);
+    }
+  }, [newEmail, newPassword, newName, createViewerAccount, fetchUsers]);
+
+  const handleRemove = useCallback(async (uid, email) => {
+    if (!window.confirm(`Remove access for ${email}? They won't be able to view the dashboard.`)) return;
+    try {
+      await removeUser(uid);
+      fetchUsers();
+    } catch (err) {
+      setError(err.message);
+    }
+  }, [removeUser, fetchUsers]);
+
+  return (
+    <div className="settings-panel user-mgmt-panel">
+      <div className="settings-panel__header">
+        <h3><Shield size={16} style={{ verticalAlign: 'middle', marginRight: 6 }} /> Manage Team Access</h3>
+      </div>
+
+      {/* Create new viewer */}
+      <form className="user-mgmt__form" onSubmit={handleCreate}>
+        <h4 className="user-mgmt__subtitle">Add Viewer Account</h4>
+        <div className="user-mgmt__fields">
+          <input
+            type="text"
+            placeholder="Display name (optional)"
+            value={newName}
+            onChange={(e) => setNewName(e.target.value)}
+            className="user-mgmt__input"
+          />
+          <input
+            type="email"
+            placeholder="Email address"
+            value={newEmail}
+            onChange={(e) => setNewEmail(e.target.value)}
+            className="user-mgmt__input"
+            required
+          />
+          <input
+            type="text"
+            placeholder="Temporary password"
+            value={newPassword}
+            onChange={(e) => setNewPassword(e.target.value)}
+            className="user-mgmt__input"
+            required
+          />
+          <button type="submit" className="btn btn--sm btn--outline" disabled={creating}>
+            <UserPlus size={14} />
+            {creating ? 'Creating...' : 'Create Account'}
+          </button>
+        </div>
+        {error && <p className="user-mgmt__error">{error}</p>}
+        {success && <p className="user-mgmt__success">{success}</p>}
+        <p className="user-mgmt__hint">
+          Share the email and temporary password with the team member. They can sign in to view the dashboard.
+        </p>
+      </form>
+
+      {/* User list */}
+      <div className="user-mgmt__list">
+        <h4 className="user-mgmt__subtitle">Current Users</h4>
+        {loading ? (
+          <p className="user-mgmt__hint">Loading users...</p>
+        ) : users.length === 0 ? (
+          <p className="user-mgmt__hint">No users found.</p>
+        ) : (
+          <table className="user-mgmt__table">
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Email</th>
+                <th>Role</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {users.map((u) => (
+                <tr key={u.uid}>
+                  <td>{u.displayName || '—'}</td>
+                  <td>{u.email}</td>
+                  <td>
+                    <span className={`user-mgmt__role user-mgmt__role--${u.role}`}>
+                      {u.role}
+                    </span>
+                  </td>
+                  <td>
+                    {u.role !== 'admin' && (
+                      <button
+                        className="btn btn--sm btn--danger"
+                        onClick={() => handleRemove(u.uid, u.email)}
+                        title="Remove access"
+                      >
+                        <Trash2 size={12} />
+                      </button>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function Dashboard() {
   const {
     hasData, hasRevenue, revenueCategories, operatingRevenue, restrictedRevenue,
     allCategories, centers, getCategoriesForCenter, dataYears, actualsYear,
     priorYear, budgetYear, revenueCurrentYear, revenuePriorYear,
+    sharedSettings, saveDashboardSettings,
   } = useData();
   const { format } = useCurrency();
+  const { isAdmin, isViewer, authEnabled, createViewerAccount, listUsers, removeUser } = useAuth();
   const [selectedCenter, setSelectedCenter] = useState('');
   const [showSettings, setShowSettings] = useState(false);
+  const [showUserMgmt, setShowUserMgmt] = useState(false);
   const [visibility, setVisibility] = useState(loadSectionVisibility);
   const [sectionOrder, setSectionOrder] = useState(loadSectionOrder);
   const [selectedMonthIdx, setSelectedMonthIdx] = useState(null);
+
+  // For viewers: apply shared settings from Firestore when available
+  useEffect(() => {
+    if (isViewer && sharedSettings) {
+      if (sharedSettings.visibility) {
+        const merged = {};
+        ALL_SECTION_IDS.forEach((id) => {
+          merged[id] = sharedSettings.visibility[id] !== undefined
+            ? sharedSettings.visibility[id]
+            : true;
+        });
+        setVisibility(merged);
+      }
+      if (sharedSettings.order) {
+        const defaults = getDefaultGroupOrders();
+        const result = {};
+        for (const [group, defaultIds] of Object.entries(defaults)) {
+          const storedIds = sharedSettings.order[group] || [];
+          const valid = storedIds.filter((id) => defaultIds.includes(id));
+          const missing = defaultIds.filter((id) => !valid.includes(id));
+          result[group] = [...valid, ...missing];
+        }
+        setSectionOrder(result);
+      }
+    }
+  }, [isViewer, sharedSettings]);
 
   const show = (id) => visibility[id] !== false;
   const getGroupOrder = useCallback((group) => sectionOrder[group] || [], [sectionOrder]);
 
   const handlePrint = useCallback(() => {
-    // Stamp the print date for the CSS ::after footer
     const el = document.querySelector('.dashboard');
     if (el) el.setAttribute('data-print-date', new Date().toLocaleDateString());
     window.print();
   }, []);
 
+  // Admin: persist settings changes to both localStorage and Firestore
+  const persistSettings = useCallback((newVisibility, newOrder) => {
+    saveSectionVisibility(newVisibility || visibility);
+    saveSectionOrder(newOrder || sectionOrder);
+    if (isAdmin) {
+      saveDashboardSettings({
+        visibility: newVisibility || visibility,
+        order: newOrder || sectionOrder,
+      });
+    }
+  }, [isAdmin, visibility, sectionOrder, saveDashboardSettings]);
+
   const toggleSection = useCallback((id) => {
     setVisibility((prev) => {
       const next = { ...prev, [id]: !prev[id] };
       saveSectionVisibility(next);
+      if (isAdmin) saveDashboardSettings({ visibility: next });
       return next;
     });
-  }, []);
+  }, [isAdmin, saveDashboardSettings]);
 
   const setAllSections = useCallback((value) => {
     const next = {};
     ALL_SECTION_IDS.forEach((id) => { next[id] = value; });
     saveSectionVisibility(next);
     setVisibility(next);
-  }, []);
+    if (isAdmin) saveDashboardSettings({ visibility: next });
+  }, [isAdmin, saveDashboardSettings]);
 
   const moveSection = useCallback((group, fromIdx, direction) => {
     setSectionOrder((prev) => {
@@ -183,9 +380,10 @@ export default function Dashboard() {
       [arr[fromIdx], arr[toIdx]] = [arr[toIdx], arr[fromIdx]];
       const next = { ...prev, [group]: arr };
       saveSectionOrder(next);
+      if (isAdmin) saveDashboardSettings({ order: next });
       return next;
     });
-  }, []);
+  }, [isAdmin, saveDashboardSettings]);
 
   // Operating revenue (excludes restricted/designated funds like Family Restoration)
   const activeRevenue = hasRevenue ? operatingRevenue : [];
@@ -389,8 +587,14 @@ export default function Dashboard() {
         <div className="dashboard__empty">
           <Upload size={48} strokeWidth={1.5} />
           <h3>No data uploaded yet</h3>
-          <p>Upload your mapping, budget, actuals, and revenue files to get started.</p>
-          <a href="#/upload" className="btn btn--primary">Go to Upload</a>
+          {isAdmin ? (
+            <>
+              <p>Upload your mapping, budget, actuals, and revenue files to get started.</p>
+              <a href="#/upload" className="btn btn--primary">Go to Upload</a>
+            </>
+          ) : (
+            <p>The admin has not uploaded financial data yet. Please check back later.</p>
+          )}
         </div>
       </div>
     );
@@ -405,13 +609,24 @@ export default function Dashboard() {
             No Poor Africa — FY {year}
           </h2>
           <div className="dashboard__actions">
-            <button
-              className="btn btn--outline btn--settings no-print"
-              onClick={() => setShowSettings(!showSettings)}
-            >
-              <Settings size={14} />
-              Customize ({visibleCount}/{ALL_SECTION_IDS.length})
-            </button>
+            {isAdmin && (
+              <button
+                className="btn btn--outline btn--settings no-print"
+                onClick={() => setShowSettings(!showSettings)}
+              >
+                <Settings size={14} />
+                Customize ({visibleCount}/{ALL_SECTION_IDS.length})
+              </button>
+            )}
+            {isAdmin && authEnabled && (
+              <button
+                className="btn btn--outline no-print"
+                onClick={() => setShowUserMgmt(!showUserMgmt)}
+              >
+                <Users size={14} />
+                Manage Users
+              </button>
+            )}
             <button
               className="btn btn--outline no-print"
               onClick={handlePrint}
@@ -428,8 +643,17 @@ export default function Dashboard() {
         </p>
       </div>
 
-      {/* ── Settings Panel ── */}
-      {showSettings && (
+      {/* ── User Management Panel (Admin only) ── */}
+      {showUserMgmt && isAdmin && authEnabled && (
+        <UserManagementPanel
+          createViewerAccount={createViewerAccount}
+          listUsers={listUsers}
+          removeUser={removeUser}
+        />
+      )}
+
+      {/* ── Settings Panel (Admin only) ── */}
+      {showSettings && isAdmin && (
         <div className="settings-panel">
           <div className="settings-panel__header">
             <h3>Dashboard Sections</h3>
