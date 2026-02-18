@@ -12,6 +12,8 @@ import {
   Upload,
   Printer,
   Info,
+  ChevronUp,
+  ChevronDown,
 } from 'lucide-react';
 import {
   ResponsiveContainer,
@@ -70,6 +72,9 @@ const SECTIONS = [
 
 const ALL_SECTION_IDS = SECTIONS.map((s) => s.id);
 const STORAGE_KEY = 'npa_dashboard_sections';
+const ORDER_STORAGE_KEY = 'npa_dashboard_order';
+
+// ── Visibility persistence ──
 
 function loadSectionVisibility() {
   try {
@@ -94,6 +99,44 @@ function saveSectionVisibility(visibility) {
   } catch { /* noop */ }
 }
 
+// ── Section order persistence ──
+
+function getDefaultGroupOrders() {
+  const orders = {};
+  SECTIONS.forEach((s) => {
+    if (!orders[s.group]) orders[s.group] = [];
+    orders[s.group].push(s.id);
+  });
+  return orders;
+}
+
+function loadSectionOrder() {
+  try {
+    const stored = localStorage.getItem(ORDER_STORAGE_KEY);
+    if (stored) {
+      const parsed = JSON.parse(stored);
+      const defaults = getDefaultGroupOrders();
+      const result = {};
+      for (const [group, defaultIds] of Object.entries(defaults)) {
+        const storedIds = parsed[group] || [];
+        // Keep stored order, filtered to only still-valid IDs
+        const valid = storedIds.filter((id) => defaultIds.includes(id));
+        // Append any new IDs not yet in stored order
+        const missing = defaultIds.filter((id) => !valid.includes(id));
+        result[group] = [...valid, ...missing];
+      }
+      return result;
+    }
+  } catch { /* noop */ }
+  return getDefaultGroupOrders();
+}
+
+function saveSectionOrder(order) {
+  try {
+    localStorage.setItem(ORDER_STORAGE_KEY, JSON.stringify(order));
+  } catch { /* noop */ }
+}
+
 export default function Dashboard() {
   const {
     hasData, hasRevenue, revenueCategories, operatingRevenue, restrictedRevenue,
@@ -104,9 +147,11 @@ export default function Dashboard() {
   const [selectedCenter, setSelectedCenter] = useState('');
   const [showSettings, setShowSettings] = useState(false);
   const [visibility, setVisibility] = useState(loadSectionVisibility);
+  const [sectionOrder, setSectionOrder] = useState(loadSectionOrder);
   const [selectedMonthIdx, setSelectedMonthIdx] = useState(null);
 
   const show = (id) => visibility[id] !== false;
+  const getGroupOrder = useCallback((group) => sectionOrder[group] || [], [sectionOrder]);
 
   const handlePrint = useCallback(() => {
     // Stamp the print date for the CSS ::after footer
@@ -128,6 +173,18 @@ export default function Dashboard() {
     ALL_SECTION_IDS.forEach((id) => { next[id] = value; });
     saveSectionVisibility(next);
     setVisibility(next);
+  }, []);
+
+  const moveSection = useCallback((group, fromIdx, direction) => {
+    setSectionOrder((prev) => {
+      const arr = [...(prev[group] || [])];
+      const toIdx = fromIdx + direction;
+      if (toIdx < 0 || toIdx >= arr.length) return prev;
+      [arr[fromIdx], arr[toIdx]] = [arr[toIdx], arr[fromIdx]];
+      const next = { ...prev, [group]: arr };
+      saveSectionOrder(next);
+      return next;
+    });
   }, []);
 
   // Operating revenue (excludes restricted/designated funds like Family Restoration)
@@ -304,12 +361,18 @@ export default function Dashboard() {
     }
   }
 
-  // Group sections for the settings panel
-  const groups = {};
-  SECTIONS.forEach((s) => {
-    if (!groups[s.group]) groups[s.group] = [];
-    groups[s.group].push(s);
-  });
+  // Ordered group names (preserve declaration order)
+  const groupNames = useMemo(() => {
+    const seen = new Set();
+    return SECTIONS.map((s) => s.group).filter((g) => { if (seen.has(g)) return false; seen.add(g); return true; });
+  }, []);
+
+  // Lookup: section id → section definition
+  const sectionById = useMemo(() => {
+    const map = {};
+    SECTIONS.forEach((s) => { map[s.id] = s; });
+    return map;
+  }, []);
 
   const visibleCount = ALL_SECTION_IDS.filter((id) => visibility[id]).length;
 
@@ -380,25 +443,54 @@ export default function Dashboard() {
             </div>
           </div>
           <div className="settings-panel__grid">
-            {Object.entries(groups).map(([groupName, items]) => (
-              <div key={groupName} className="settings-panel__group">
-                <h4 className="settings-panel__group-label">{groupName}</h4>
-                {items.map((section) => (
-                  <label key={section.id} className="settings-panel__item">
-                    <input
-                      type="checkbox"
-                      checked={visibility[section.id] !== false}
-                      onChange={() => toggleSection(section.id)}
-                    />
-                    {visibility[section.id] !== false
-                      ? <Eye size={14} className="settings-panel__icon--on" />
-                      : <EyeOff size={14} className="settings-panel__icon--off" />
-                    }
-                    <span>{section.label}</span>
-                  </label>
-                ))}
-              </div>
-            ))}
+            {groupNames.map((groupName) => {
+              const orderedIds = getGroupOrder(groupName);
+              return (
+                <div key={groupName} className="settings-panel__group">
+                  <h4 className="settings-panel__group-label">{groupName}</h4>
+                  {orderedIds.map((sectionId, idx) => {
+                    const section = sectionById[sectionId];
+                    if (!section) return null;
+                    return (
+                      <div key={section.id} className="settings-panel__item">
+                        <label className="settings-panel__item-left">
+                          <input
+                            type="checkbox"
+                            checked={visibility[section.id] !== false}
+                            onChange={() => toggleSection(section.id)}
+                          />
+                          {visibility[section.id] !== false
+                            ? <Eye size={14} className="settings-panel__icon--on" />
+                            : <EyeOff size={14} className="settings-panel__icon--off" />
+                          }
+                          <span>{section.label}</span>
+                        </label>
+                        {orderedIds.length > 1 && (
+                          <div className="settings-panel__arrows">
+                            <button
+                              className="settings-panel__arrow-btn"
+                              disabled={idx === 0}
+                              onClick={() => moveSection(groupName, idx, -1)}
+                              title="Move up"
+                            >
+                              <ChevronUp size={12} />
+                            </button>
+                            <button
+                              className="settings-panel__arrow-btn"
+                              disabled={idx === orderedIds.length - 1}
+                              onClick={() => moveSection(groupName, idx, 1)}
+                              title="Move down"
+                            >
+                              <ChevronDown size={12} />
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })}
           </div>
         </div>
       )}
@@ -420,6 +512,10 @@ export default function Dashboard() {
           </select>
         </div>
       )}
+
+      {/* ══════════════════════════════════════════════
+           Sections rendered in user-defined order per group
+         ══════════════════════════════════════════════ */}
 
       {/* ── Monthly Business Review ── */}
       {(show('monthlyKpis') || show('monthlyBridge') || show('monthlyDetail')) && reviewMonthIdx >= 0 && (
@@ -443,425 +539,306 @@ export default function Dashboard() {
             </select>
           </div>
 
-          {/* Monthly KPI cards */}
-          {show('monthlyKpis') && (
-            <div className="kpi-grid" style={{ marginTop: 16 }}>
-              <KpiCard
-                title={`${reviewMonthLabel} Expenses`}
-                amount={mMonthExpTotal}
-                icon={TrendingDown}
-                type="expense"
-                comparisons={[
-                  { label: 'vs Budget', value: variance(mMonthExpTotal, mMonthBudgetTotal), pct: variancePct(mMonthExpTotal, mMonthBudgetTotal), favorable: mMonthExpTotal <= mMonthBudgetTotal },
-                  { label: `vs ${reviewMonthLabel} ${reviewPriorYr}`, value: variance(mMonthExpTotal, mMonthPriorTotal), pct: variancePct(mMonthExpTotal, mMonthPriorTotal), favorable: mMonthExpTotal <= mMonthPriorTotal },
-                ]}
-              />
-              {activeRevenue.length > 0 && (
-                <KpiCard
-                  title={`${reviewMonthLabel} Revenue`}
-                  amount={mMonthRev}
-                  icon={TrendingUp}
-                  type="revenue"
-                  comparisons={[
-                    { label: 'vs Budget', value: variance(mMonthRev, mMonthRevBudget), pct: variancePct(mMonthRev, mMonthRevBudget), favorable: mMonthRev >= mMonthRevBudget },
-                    { label: `vs ${reviewMonthLabel} ${reviewPriorYr}`, value: variance(mMonthRev, mMonthRevPrior), pct: variancePct(mMonthRev, mMonthRevPrior), favorable: mMonthRev >= mMonthRevPrior },
-                  ]}
-                />
-              )}
-              {activeRevenue.length > 0 && (
-                <KpiCard
-                  title={`${reviewMonthLabel} Net`}
-                  amount={mMonthNet}
-                  icon={DollarSign}
-                  type={mMonthNet >= 0 ? 'revenue' : 'expense'}
-                  comparisons={[
-                    { label: 'Revenue', value: mMonthRev },
-                    { label: 'Expenses', value: -mMonthExpTotal },
-                  ]}
-                />
-              )}
-            </div>
-          )}
-
-          {/* Budget & YoY Bridges */}
-          {show('monthlyBridge') && (bridgeData || yoyBridgeData) && (
-            <div className="bridge" style={{ marginTop: 16 }}>
-              <h3 className="fin-table__title">
-                {reviewMonthLabel} {reviewActualsYear} — Expense Bridges
-              </h3>
-
-              {/* Notes from actuals with amounts */}
-              {(() => {
-                const allNotes = monthlyExpDetail
-                  .filter((r) => r.notes && r.notes.length > 0)
-                  .map((r) => ({ name: r.name, notes: r.notes }));
-                if (allNotes.length === 0) return null;
-                return (
-                  <div className="bridge__notes">
-                    <h4 className="bridge__notes-title">Notes</h4>
-                    <ul className="bridge__notes-list">
-                      {allNotes.map((item) =>
-                        item.notes.map((note, i) => (
-                          <li key={`${item.name}-${i}`}>
-                            <strong>{note.lineItem || item.name}{note.lineItem ? ` in the ${item.name} category` : ''}, ({format(note.amount)}):</strong> {note.text}
-                          </li>
-                        ))
-                      )}
-                    </ul>
-                  </div>
-                );
-              })()}
-
-              {/* Side-by-side bridges: narrative + table per column */}
-              <div className="bridge__grid">
-                {/* Budget Bridge */}
-                {bridgeData && (
-                  <div className="bridge__column">
-                    <h4 className="bridge__subtitle">vs Budget</h4>
-                    <div className="bridge__narrative">
-                      <p>{bridgeData.narrative}</p>
-                    </div>
-                    <div className="fin-table-scroll">
-                      <table className="fin-table bridge__table">
-                        <thead>
-                          <tr>
-                            <th className="fin-table__category">Item</th>
-                            <th className="bridge__amount">Amount</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          <tr className="bridge__row bridge__row--anchor">
-                            <td className="fin-table__category"><strong>Budgeted Expenses</strong></td>
-                            <td className="bridge__amount"><strong>{format(bridgeData.baseTotal)}</strong></td>
-                          </tr>
-                          {bridgeData.rows.map((row) => (
-                            <tr
-                              key={row.name}
-                              className={`bridge__row ${row.variance > 0 ? 'bridge__row--over' : 'bridge__row--under'}`}
-                            >
-                              <td className="fin-table__category bridge__indent">{row.name}</td>
-                              <td className={`bridge__amount ${row.variance > 0 ? 'unfavorable' : 'favorable'}`}>
-                                {row.variance > 0 ? '+' : ''}{format(row.variance)}
-                              </td>
-                            </tr>
-                          ))}
-                          <tr className="bridge__row bridge__row--anchor bridge__row--total">
-                            <td className="fin-table__category"><strong>Actual Expenses</strong></td>
-                            <td className="bridge__amount"><strong>{format(bridgeData.actualTotal)}</strong></td>
-                          </tr>
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-                )}
-
-                {/* YoY Bridge */}
-                {yoyBridgeData && (
-                  <div className="bridge__column">
-                    <h4 className="bridge__subtitle">vs Prior Year ({reviewPriorYr})</h4>
-                    <div className="bridge__narrative">
-                      <p>{yoyBridgeData.narrative}</p>
-                    </div>
-                    <div className="fin-table-scroll">
-                      <table className="fin-table bridge__table">
-                        <thead>
-                          <tr>
-                            <th className="fin-table__category">Item</th>
-                            <th className="bridge__amount">Amount</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          <tr className="bridge__row bridge__row--anchor">
-                            <td className="fin-table__category"><strong>{reviewMonthLabel} {reviewPriorYr} Expenses</strong></td>
-                            <td className="bridge__amount"><strong>{format(yoyBridgeData.baseTotal)}</strong></td>
-                          </tr>
-                          {yoyBridgeData.rows.map((row) => (
-                            <tr
-                              key={row.name}
-                              className={`bridge__row ${row.variance > 0 ? 'bridge__row--over' : 'bridge__row--under'}`}
-                            >
-                              <td className="fin-table__category bridge__indent">{row.name}</td>
-                              <td className={`bridge__amount ${row.variance > 0 ? 'unfavorable' : 'favorable'}`}>
-                                {row.variance > 0 ? '+' : ''}{format(row.variance)}
-                              </td>
-                            </tr>
-                          ))}
-                          <tr className="bridge__row bridge__row--anchor bridge__row--total">
-                            <td className="fin-table__category"><strong>Actual Expenses</strong></td>
-                            <td className="bridge__amount"><strong>{format(yoyBridgeData.actualTotal)}</strong></td>
-                          </tr>
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* Monthly category breakdown table */}
-          {show('monthlyDetail') && monthlyExpDetail.length > 0 && (
-            <div className="fin-table-container" style={{ marginTop: 16 }}>
-              <h3 className="fin-table__title">
-                {reviewMonthLabel} {reviewActualsYear} — Expenses by Category
-              </h3>
-              <div className="fin-table-scroll">
-                <table className="fin-table">
-                  <thead>
-                    <tr>
-                      <th className="fin-table__category">Category</th>
-                      <th>Actual</th>
-                      <th>Budget</th>
-                      <th>Var ($)</th>
-                      <th>Var (%)</th>
-                      <th>{reviewMonthLabel} {reviewPriorYr}</th>
-                      <th>YoY ($)</th>
-                      <th>YoY (%)</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {monthlyExpDetail.filter((r) => r.actual !== null || r.budget > 0).map((row) => (
-                      <tr key={row.id}>
-                        <td className="fin-table__category">{row.name}</td>
-                        <td>{row.actual !== null ? format(row.actual) : '—'}</td>
-                        <td>{format(row.budget)}</td>
-                        <td className={row.budgetVar !== null ? (row.budgetVar <= 0 ? 'favorable' : 'unfavorable') : ''}>
-                          {row.budgetVar !== null ? format(row.budgetVar) : '—'}
-                        </td>
-                        <td className={row.budgetVarPct !== null ? (row.budgetVarPct <= 0 ? 'favorable' : 'unfavorable') : ''}>
-                          {row.budgetVarPct !== null ? `${row.budgetVarPct > 0 ? '+' : ''}${row.budgetVarPct.toFixed(1)}%` : '—'}
-                        </td>
-                        <td>{format(row.prior)}</td>
-                        <td className={row.priorVar !== null ? (row.priorVar <= 0 ? 'favorable' : 'unfavorable') : ''}>
-                          {row.priorVar !== null ? format(row.priorVar) : '—'}
-                        </td>
-                        <td className={row.priorVarPct !== null ? (row.priorVarPct <= 0 ? 'favorable' : 'unfavorable') : ''}>
-                          {row.priorVarPct !== null ? `${row.priorVarPct > 0 ? '+' : ''}${row.priorVarPct.toFixed(1)}%` : '—'}
-                        </td>
-                      </tr>
-                    ))}
-                    {/* Totals row */}
-                    <tr className="fin-table__total-row">
-                      <td className="fin-table__category"><strong>Total</strong></td>
-                      <td><strong>{format(mMonthExpTotal)}</strong></td>
-                      <td><strong>{format(mMonthBudgetTotal)}</strong></td>
-                      <td className={mMonthExpTotal <= mMonthBudgetTotal ? 'favorable' : 'unfavorable'}>
-                        <strong>{format(mMonthExpTotal - mMonthBudgetTotal)}</strong>
-                      </td>
-                      <td className={mMonthExpTotal <= mMonthBudgetTotal ? 'favorable' : 'unfavorable'}>
-                        <strong>{mMonthBudgetTotal ? `${variancePct(mMonthExpTotal, mMonthBudgetTotal).toFixed(1)}%` : '—'}</strong>
-                      </td>
-                      <td><strong>{format(mMonthPriorTotal)}</strong></td>
-                      <td className={mMonthExpTotal <= mMonthPriorTotal ? 'favorable' : 'unfavorable'}>
-                        <strong>{format(mMonthExpTotal - mMonthPriorTotal)}</strong>
-                      </td>
-                      <td className={mMonthExpTotal <= mMonthPriorTotal ? 'favorable' : 'unfavorable'}>
-                        <strong>{mMonthPriorTotal ? `${variancePct(mMonthExpTotal, mMonthPriorTotal).toFixed(1)}%` : '—'}</strong>
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* ── Restricted Funds FYI ── */}
-      {show('restrictedFunds') && activeRestricted.length > 0 && restrictedActual > 0 && (
-        <div className="restricted-funds-callout">
-          <div className="restricted-funds-callout__icon">
-            <Info size={18} />
-          </div>
-          <div className="restricted-funds-callout__content">
-            <h4 className="restricted-funds-callout__title">Designated Funds — For Information Only</h4>
-            <p className="restricted-funds-callout__desc">
-              The following are separate projects and are <strong>not</strong> included in operating revenue or net position.
-            </p>
-            <div className="restricted-funds-callout__items">
-              {activeRestricted.map((cat) => {
-                const catYtd = ytdTotal([cat]);
-                const catPrior = ytdPriorYearTotal([cat]);
-                return (
-                  <div key={cat.id} className="restricted-funds-callout__item">
-                    <span className="restricted-funds-callout__name">{cat.name}</span>
-                    <span className="restricted-funds-callout__amount">{format(catYtd)} YTD</span>
-                    {catPrior > 0 && (
-                      <span className="restricted-funds-callout__prior">({format(catPrior)} prior year)</span>
+          {getGroupOrder('Monthly Review').map((id) => {
+            if (id === 'monthlyKpis' && show('monthlyKpis')) {
+              return (
+                <div key={id} className="kpi-grid" style={{ marginTop: 16 }}>
+                  <KpiCard
+                    title={`${reviewMonthLabel} Expenses`}
+                    amount={mMonthExpTotal}
+                    icon={TrendingDown}
+                    type="expense"
+                    comparisons={[
+                      { label: 'vs Budget', value: variance(mMonthExpTotal, mMonthBudgetTotal), pct: variancePct(mMonthExpTotal, mMonthBudgetTotal), favorable: mMonthExpTotal <= mMonthBudgetTotal },
+                      { label: `vs ${reviewMonthLabel} ${reviewPriorYr}`, value: variance(mMonthExpTotal, mMonthPriorTotal), pct: variancePct(mMonthExpTotal, mMonthPriorTotal), favorable: mMonthExpTotal <= mMonthPriorTotal },
+                    ]}
+                  />
+                  {activeRevenue.length > 0 && (
+                    <KpiCard
+                      title={`${reviewMonthLabel} Revenue`}
+                      amount={mMonthRev}
+                      icon={TrendingUp}
+                      type="revenue"
+                      comparisons={[
+                        { label: 'vs Budget', value: variance(mMonthRev, mMonthRevBudget), pct: variancePct(mMonthRev, mMonthRevBudget), favorable: mMonthRev >= mMonthRevBudget },
+                        { label: `vs ${reviewMonthLabel} ${reviewPriorYr}`, value: variance(mMonthRev, mMonthRevPrior), pct: variancePct(mMonthRev, mMonthRevPrior), favorable: mMonthRev >= mMonthRevPrior },
+                      ]}
+                    />
+                  )}
+                  {activeRevenue.length > 0 && (
+                    <KpiCard
+                      title={`${reviewMonthLabel} Net`}
+                      amount={mMonthNet}
+                      icon={DollarSign}
+                      type={mMonthNet >= 0 ? 'revenue' : 'expense'}
+                      comparisons={[
+                        { label: 'Revenue', value: mMonthRev },
+                        { label: 'Expenses', value: -mMonthExpTotal },
+                      ]}
+                    />
+                  )}
+                </div>
+              );
+            }
+            if (id === 'monthlyBridge' && show('monthlyBridge') && (bridgeData || yoyBridgeData)) {
+              return (
+                <div key={id} className="bridge" style={{ marginTop: 16 }}>
+                  <h3 className="fin-table__title">
+                    {reviewMonthLabel} {reviewActualsYear} — Expense Bridges
+                  </h3>
+                  {(() => {
+                    const allNotes = monthlyExpDetail
+                      .filter((r) => r.notes && r.notes.length > 0)
+                      .map((r) => ({ name: r.name, notes: r.notes }));
+                    if (allNotes.length === 0) return null;
+                    return (
+                      <div className="bridge__notes">
+                        <h4 className="bridge__notes-title">Notes</h4>
+                        <ul className="bridge__notes-list">
+                          {allNotes.map((item) =>
+                            item.notes.map((note, ni) => (
+                              <li key={`${item.name}-${ni}`}>
+                                <strong>{note.lineItem || item.name}{note.lineItem ? ` in the ${item.name} category` : ''}, ({format(note.amount)}):</strong> {note.text}
+                              </li>
+                            ))
+                          )}
+                        </ul>
+                      </div>
+                    );
+                  })()}
+                  <div className="bridge__grid">
+                    {bridgeData && (
+                      <div className="bridge__column">
+                        <h4 className="bridge__subtitle">vs Budget</h4>
+                        <div className="bridge__narrative"><p>{bridgeData.narrative}</p></div>
+                        <div className="fin-table-scroll">
+                          <table className="fin-table bridge__table">
+                            <thead><tr><th className="fin-table__category">Item</th><th className="bridge__amount">Amount</th></tr></thead>
+                            <tbody>
+                              <tr className="bridge__row bridge__row--anchor"><td className="fin-table__category"><strong>Budgeted Expenses</strong></td><td className="bridge__amount"><strong>{format(bridgeData.baseTotal)}</strong></td></tr>
+                              {bridgeData.rows.map((row) => (
+                                <tr key={row.name} className={`bridge__row ${row.variance > 0 ? 'bridge__row--over' : 'bridge__row--under'}`}>
+                                  <td className="fin-table__category bridge__indent">{row.name}</td>
+                                  <td className={`bridge__amount ${row.variance > 0 ? 'unfavorable' : 'favorable'}`}>{row.variance > 0 ? '+' : ''}{format(row.variance)}</td>
+                                </tr>
+                              ))}
+                              <tr className="bridge__row bridge__row--anchor bridge__row--total"><td className="fin-table__category"><strong>Actual Expenses</strong></td><td className="bridge__amount"><strong>{format(bridgeData.actualTotal)}</strong></td></tr>
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    )}
+                    {yoyBridgeData && (
+                      <div className="bridge__column">
+                        <h4 className="bridge__subtitle">vs Prior Year ({reviewPriorYr})</h4>
+                        <div className="bridge__narrative"><p>{yoyBridgeData.narrative}</p></div>
+                        <div className="fin-table-scroll">
+                          <table className="fin-table bridge__table">
+                            <thead><tr><th className="fin-table__category">Item</th><th className="bridge__amount">Amount</th></tr></thead>
+                            <tbody>
+                              <tr className="bridge__row bridge__row--anchor"><td className="fin-table__category"><strong>{reviewMonthLabel} {reviewPriorYr} Expenses</strong></td><td className="bridge__amount"><strong>{format(yoyBridgeData.baseTotal)}</strong></td></tr>
+                              {yoyBridgeData.rows.map((row) => (
+                                <tr key={row.name} className={`bridge__row ${row.variance > 0 ? 'bridge__row--over' : 'bridge__row--under'}`}>
+                                  <td className="fin-table__category bridge__indent">{row.name}</td>
+                                  <td className={`bridge__amount ${row.variance > 0 ? 'unfavorable' : 'favorable'}`}>{row.variance > 0 ? '+' : ''}{format(row.variance)}</td>
+                                </tr>
+                              ))}
+                              <tr className="bridge__row bridge__row--anchor bridge__row--total"><td className="fin-table__category"><strong>Actual Expenses</strong></td><td className="bridge__amount"><strong>{format(yoyBridgeData.actualTotal)}</strong></td></tr>
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
                     )}
                   </div>
-                );
+                </div>
+              );
+            }
+            if (id === 'monthlyDetail' && show('monthlyDetail') && monthlyExpDetail.length > 0) {
+              return (
+                <div key={id} className="fin-table-container" style={{ marginTop: 16 }}>
+                  <h3 className="fin-table__title">{reviewMonthLabel} {reviewActualsYear} — Expenses by Category</h3>
+                  <div className="fin-table-scroll">
+                    <table className="fin-table">
+                      <thead>
+                        <tr>
+                          <th className="fin-table__category">Category</th>
+                          <th>Actual</th><th>Budget</th><th>Var ($)</th><th>Var (%)</th>
+                          <th>{reviewMonthLabel} {reviewPriorYr}</th><th>YoY ($)</th><th>YoY (%)</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {monthlyExpDetail.filter((r) => r.actual !== null || r.budget > 0).map((row) => (
+                          <tr key={row.id}>
+                            <td className="fin-table__category">{row.name}</td>
+                            <td>{row.actual !== null ? format(row.actual) : '—'}</td>
+                            <td>{format(row.budget)}</td>
+                            <td className={row.budgetVar !== null ? (row.budgetVar <= 0 ? 'favorable' : 'unfavorable') : ''}>{row.budgetVar !== null ? format(row.budgetVar) : '—'}</td>
+                            <td className={row.budgetVarPct !== null ? (row.budgetVarPct <= 0 ? 'favorable' : 'unfavorable') : ''}>{row.budgetVarPct !== null ? `${row.budgetVarPct > 0 ? '+' : ''}${row.budgetVarPct.toFixed(1)}%` : '—'}</td>
+                            <td>{format(row.prior)}</td>
+                            <td className={row.priorVar !== null ? (row.priorVar <= 0 ? 'favorable' : 'unfavorable') : ''}>{row.priorVar !== null ? format(row.priorVar) : '—'}</td>
+                            <td className={row.priorVarPct !== null ? (row.priorVarPct <= 0 ? 'favorable' : 'unfavorable') : ''}>{row.priorVarPct !== null ? `${row.priorVarPct > 0 ? '+' : ''}${row.priorVarPct.toFixed(1)}%` : '—'}</td>
+                          </tr>
+                        ))}
+                        <tr className="fin-table__total-row">
+                          <td className="fin-table__category"><strong>Total</strong></td>
+                          <td><strong>{format(mMonthExpTotal)}</strong></td>
+                          <td><strong>{format(mMonthBudgetTotal)}</strong></td>
+                          <td className={mMonthExpTotal <= mMonthBudgetTotal ? 'favorable' : 'unfavorable'}><strong>{format(mMonthExpTotal - mMonthBudgetTotal)}</strong></td>
+                          <td className={mMonthExpTotal <= mMonthBudgetTotal ? 'favorable' : 'unfavorable'}><strong>{mMonthBudgetTotal ? `${variancePct(mMonthExpTotal, mMonthBudgetTotal).toFixed(1)}%` : '—'}</strong></td>
+                          <td><strong>{format(mMonthPriorTotal)}</strong></td>
+                          <td className={mMonthExpTotal <= mMonthPriorTotal ? 'favorable' : 'unfavorable'}><strong>{format(mMonthExpTotal - mMonthPriorTotal)}</strong></td>
+                          <td className={mMonthExpTotal <= mMonthPriorTotal ? 'favorable' : 'unfavorable'}><strong>{mMonthPriorTotal ? `${variancePct(mMonthExpTotal, mMonthPriorTotal).toFixed(1)}%` : '—'}</strong></td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              );
+            }
+            return null;
+          })}
+        </div>
+      )}
+
+      {/* ── KPI Cards group (rendered in order) ── */}
+      {(() => {
+        const kpiOrder = getGroupOrder('KPI Cards');
+        const kpiCardIds = new Set(['kpiRevenue', 'kpiExpenses', 'kpiNet', 'kpiBudget']);
+        const elements = [];
+        let pendingCards = [];
+
+        const renderKpiCard = (cardId) => {
+          if (cardId === 'kpiRevenue' && show('kpiRevenue') && activeRevenue.length > 0)
+            return <KpiCard key={cardId} title="YTD Revenue" amount={revActual} icon={TrendingUp} type="revenue" comparisons={[{ label: 'vs Budget', value: variance(revActual, revBudget), pct: variancePct(revActual, revBudget), favorable: revActual >= revBudget }, { label: 'vs Prior Year', value: variance(revActual, revPrior), pct: variancePct(revActual, revPrior), favorable: revActual >= revPrior }]} />;
+          if (cardId === 'kpiExpenses' && show('kpiExpenses') && expenseCategories.length > 0)
+            return <KpiCard key={cardId} title="YTD Total Expenses" amount={totalExpActual} icon={TrendingDown} type="expense" comparisons={[{ label: 'vs Budget', value: variance(totalExpActual, totalExpBudget), pct: variancePct(totalExpActual, totalExpBudget), favorable: totalExpActual <= totalExpBudget }, { label: 'vs Prior Year', value: variance(totalExpActual, totalExpPrior), pct: variancePct(totalExpActual, totalExpPrior), favorable: totalExpActual <= totalExpPrior }]} />;
+          if (cardId === 'kpiNet' && show('kpiNet') && (activeRevenue.length > 0 || expenseCategories.length > 0))
+            return <KpiCard key={cardId} title="YTD Net Position" amount={netActual} icon={DollarSign} type={netActual >= 0 ? 'revenue' : 'expense'} comparisons={[{ label: 'vs Budget', value: variance(netActual, netBudget), pct: variancePct(netActual, netBudget), favorable: netActual >= netBudget }, { label: 'vs Prior Year', value: variance(netActual, netPrior), pct: variancePct(netActual, netPrior), favorable: netActual >= netPrior }]} />;
+          if (cardId === 'kpiBudget' && show('kpiBudget') && totalExpAnnual > 0)
+            return <KpiCard key={cardId} title="Annual Expense Budget" amount={totalExpAnnual} icon={PieChartIcon} type="neutral" comparisons={[{ label: 'Used YTD', value: totalExpActual, pct: totalExpAnnual > 0 ? variancePct(totalExpActual, totalExpAnnual) : 0 }]} />;
+          return null;
+        };
+
+        const flushCards = () => {
+          const visible = pendingCards.filter(Boolean);
+          if (visible.length > 0) elements.push(<div key={`kpi-grid-${elements.length}`} className="kpi-grid">{visible}</div>);
+          pendingCards = [];
+        };
+
+        for (const id of kpiOrder) {
+          if (id === 'restrictedFunds') {
+            flushCards();
+            if (show('restrictedFunds') && activeRestricted.length > 0 && restrictedActual > 0) {
+              elements.push(
+                <div key={id} className="restricted-funds-callout">
+                  <div className="restricted-funds-callout__icon"><Info size={18} /></div>
+                  <div className="restricted-funds-callout__content">
+                    <h4 className="restricted-funds-callout__title">Designated Funds — For Information Only</h4>
+                    <p className="restricted-funds-callout__desc">The following are separate projects and are <strong>not</strong> included in operating revenue or net position.</p>
+                    <div className="restricted-funds-callout__items">
+                      {activeRestricted.map((cat) => {
+                        const catYtd = ytdTotal([cat]);
+                        const catPrior = ytdPriorYearTotal([cat]);
+                        return (
+                          <div key={cat.id} className="restricted-funds-callout__item">
+                            <span className="restricted-funds-callout__name">{cat.name}</span>
+                            <span className="restricted-funds-callout__amount">{format(catYtd)} YTD</span>
+                            {catPrior > 0 && <span className="restricted-funds-callout__prior">({format(catPrior)} prior year)</span>}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+              );
+            }
+          } else if (kpiCardIds.has(id)) {
+            pendingCards.push(renderKpiCard(id));
+          }
+        }
+        flushCards();
+        return elements;
+      })()}
+
+      {/* ── Charts group (rendered in order) ── */}
+      {(() => {
+        const chartOrder = getGroupOrder('Charts');
+        const elements = [];
+        let chartBatch = [];
+
+        const flushCharts = () => {
+          const visible = chartBatch.filter(Boolean);
+          if (visible.length > 0) elements.push(<div key={`chart-grid-${elements.length}`} className="chart-grid">{visible}</div>);
+          chartBatch = [];
+        };
+
+        for (const id of chartOrder) {
+          if (id === 'timeline') {
+            flushCharts();
+            if (show('timeline') && timelineData.length > 0) {
+              elements.push(
+                <TimelineChart key={id} title="Expense Timeline: Prior Year Actuals → Current Actuals → Forward Budget" data={timelineData} actualsYear={actualsYear} budgetYear={budgetYear} priorYear={priorYear} />
+              );
+            }
+          } else if (id === 'pieBreakdown' && show('pieBreakdown') && pieData.length > 0) {
+            chartBatch.push(
+              <div key={id} className="chart-container">
+                <h3 className="chart__title">Program Breakdown (YTD)</h3>
+                <ResponsiveContainer width="100%" height={280}>
+                  <PieChart>
+                    <Pie data={pieData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={100}
+                      label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`} labelLine>
+                      {pieData.map((_, i) => (<Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />))}
+                    </Pie>
+                    <Tooltip formatter={(value) => format(value)} />
+                    <Legend />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+            );
+          } else if (id === 'chartRevenue' && show('chartRevenue') && revenueChartData.length > 0) {
+            chartBatch.push(<MonthlyChart key={id} title="Revenue: Actual vs Prior Year" data={revenueChartData} actualsYear={revActualsYr} budgetYear={null} priorYear={revPriorYr} />);
+          } else if (id === 'chartExpense' && show('chartExpense') && expenseChartData.length > 0) {
+            chartBatch.push(<MonthlyChart key={id} title="Expenses: Actual vs Prior Year" data={expenseChartData} actualsYear={actualsYear} budgetYear={budgetYear} priorYear={priorYear} />);
+          }
+        }
+        flushCharts();
+        return elements;
+      })()}
+
+      {/* ── Tables group (rendered in order) ── */}
+      {getGroupOrder('Tables').map((id) => {
+        if (id === 'tableExpenses' && show('tableExpenses') && expRows.length > 0)
+          return <FinancialTable key={id} title="All Expenses by Category" rows={expRows} isRevenue={false} />;
+        if (id === 'tableRevenue' && show('tableRevenue') && revenueRows.length > 0)
+          return <FinancialTable key={id} title="Revenue Detail (All Sources)" rows={revenueRows} isRevenue restrictedIds={activeRestricted.map((c) => c.id)} />;
+        return null;
+      })}
+
+      {/* ── Budget Progress group (rendered in order) ── */}
+      {getGroupOrder('Budget Progress').map((id) => {
+        if (id === 'budgetExpenses' && show('budgetExpenses') && expenseCategories.length > 0)
+          return (
+            <div key={id} className="section">
+              <h3 className="section__title">Annual Budget Utilization — Expenses</h3>
+              {expenseCategories.filter((cat) => cat.budgetAnnual > 0).map((cat) => {
+                const rows = buildCategorySummary([cat]);
+                return <BudgetProgressBar key={cat.id} label={cat.name} actual={rows[0].ytdActual} budget={cat.budgetAnnual} priorYear={rows[0].fullPrior} />;
               })}
             </div>
-          </div>
-        </div>
-      )}
-
-      {/* ── KPI Cards ── */}
-      {(show('kpiRevenue') || show('kpiExpenses') || show('kpiNet') || show('kpiBudget')) && (
-        <div className="kpi-grid">
-          {show('kpiRevenue') && activeRevenue.length > 0 && (
-            <KpiCard
-              title="YTD Revenue"
-              amount={revActual}
-              icon={TrendingUp}
-              type="revenue"
-              comparisons={[
-                { label: 'vs Budget', value: variance(revActual, revBudget), pct: variancePct(revActual, revBudget), favorable: revActual >= revBudget },
-                { label: 'vs Prior Year', value: variance(revActual, revPrior), pct: variancePct(revActual, revPrior), favorable: revActual >= revPrior },
-              ]}
-            />
-          )}
-          {show('kpiExpenses') && expenseCategories.length > 0 && (
-            <KpiCard
-              title="YTD Total Expenses"
-              amount={totalExpActual}
-              icon={TrendingDown}
-              type="expense"
-              comparisons={[
-                { label: 'vs Budget', value: variance(totalExpActual, totalExpBudget), pct: variancePct(totalExpActual, totalExpBudget), favorable: totalExpActual <= totalExpBudget },
-                { label: 'vs Prior Year', value: variance(totalExpActual, totalExpPrior), pct: variancePct(totalExpActual, totalExpPrior), favorable: totalExpActual <= totalExpPrior },
-              ]}
-            />
-          )}
-          {show('kpiNet') && (activeRevenue.length > 0 || expenseCategories.length > 0) && (
-            <KpiCard
-              title="YTD Net Position"
-              amount={netActual}
-              icon={DollarSign}
-              type={netActual >= 0 ? 'revenue' : 'expense'}
-              comparisons={[
-                { label: 'vs Budget', value: variance(netActual, netBudget), pct: variancePct(netActual, netBudget), favorable: netActual >= netBudget },
-                { label: 'vs Prior Year', value: variance(netActual, netPrior), pct: variancePct(netActual, netPrior), favorable: netActual >= netPrior },
-              ]}
-            />
-          )}
-          {show('kpiBudget') && totalExpAnnual > 0 && (
-            <KpiCard
-              title="Annual Expense Budget"
-              amount={totalExpAnnual}
-              icon={PieChartIcon}
-              type="neutral"
-              comparisons={[
-                { label: 'Used YTD', value: totalExpActual, pct: totalExpAnnual > 0 ? variancePct(totalExpActual, totalExpAnnual) : 0 },
-              ]}
-            />
-          )}
-        </div>
-      )}
-
-      {/* ── Full-width Timeline ── */}
-      {show('timeline') && timelineData.length > 0 && (
-        <TimelineChart
-          title="Expense Timeline: Prior Year Actuals → Current Actuals → Forward Budget"
-          data={timelineData}
-          actualsYear={actualsYear}
-          budgetYear={budgetYear}
-          priorYear={priorYear}
-        />
-      )}
-
-      {/* ── Program Breakdown Pie ── */}
-      {show('pieBreakdown') && pieData.length > 0 && (
-        <div className="chart-grid">
-          <div className="chart-container">
-            <h3 className="chart__title">Program Breakdown (YTD)</h3>
-            <ResponsiveContainer width="100%" height={280}>
-              <PieChart>
-                <Pie data={pieData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={100}
-                  label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`} labelLine>
-                  {pieData.map((_, i) => (
-                    <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
-                  ))}
-                </Pie>
-                <Tooltip formatter={(value) => format(value)} />
-                <Legend />
-              </PieChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-      )}
-
-      {/* ── Bar Charts ── */}
-      {(show('chartRevenue') || show('chartExpense')) && (
-        <div className="chart-grid">
-          {show('chartRevenue') && revenueChartData.length > 0 && (
-            <MonthlyChart
-              title="Revenue: Actual vs Prior Year"
-              data={revenueChartData}
-              actualsYear={revActualsYr}
-              budgetYear={null}
-              priorYear={revPriorYr}
-            />
-          )}
-          {show('chartExpense') && expenseChartData.length > 0 && (
-            <MonthlyChart
-              title="Expenses: Actual vs Prior Year"
-              data={expenseChartData}
-              actualsYear={actualsYear}
-              budgetYear={budgetYear}
-              priorYear={priorYear}
-            />
-          )}
-        </div>
-      )}
-
-      {/* ── Expense Table ── */}
-      {show('tableExpenses') && expRows.length > 0 && (
-        <FinancialTable
-          title="All Expenses by Category"
-          rows={expRows}
-          isRevenue={false}
-        />
-      )}
-
-      {/* ── Revenue Table ── */}
-      {show('tableRevenue') && revenueRows.length > 0 && (
-        <FinancialTable
-          title="Revenue Detail (All Sources)"
-          rows={revenueRows}
-          isRevenue
-          restrictedIds={activeRestricted.map((c) => c.id)}
-        />
-      )}
-
-      {/* ── Budget Progress: Expenses ── */}
-      {show('budgetExpenses') && expenseCategories.length > 0 && (
-        <div className="section">
-          <h3 className="section__title">Annual Budget Utilization — Expenses</h3>
-          {expenseCategories.filter((cat) => cat.budgetAnnual > 0).map((cat) => {
-            const rows = buildCategorySummary([cat]);
-            return (
-              <BudgetProgressBar
-                key={cat.id}
-                label={cat.name}
-                actual={rows[0].ytdActual}
-                budget={cat.budgetAnnual}
-                priorYear={rows[0].fullPrior}
-              />
-            );
-          })}
-        </div>
-      )}
-
-      {/* ── Budget Progress: Revenue ── */}
-      {show('budgetRevenue') && allRevenue.length > 0 && (
-        <div className="section">
-          <h3 className="section__title">Annual Budget Utilization — Revenue</h3>
-          {allRevenue.filter((cat) => cat.budgetAnnual > 0).map((cat) => {
-            const rows = buildCategorySummary([cat]);
-            return (
-              <BudgetProgressBar
-                key={cat.id}
-                label={cat.name}
-                actual={rows[0].ytdActual}
-                budget={cat.budgetAnnual}
-                priorYear={rows[0].fullPrior}
-              />
-            );
-          })}
-        </div>
-      )}
+          );
+        if (id === 'budgetRevenue' && show('budgetRevenue') && allRevenue.length > 0)
+          return (
+            <div key={id} className="section">
+              <h3 className="section__title">Annual Budget Utilization — Revenue</h3>
+              {allRevenue.filter((cat) => cat.budgetAnnual > 0).map((cat) => {
+                const rows = buildCategorySummary([cat]);
+                return <BudgetProgressBar key={cat.id} label={cat.name} actual={rows[0].ytdActual} budget={cat.budgetAnnual} priorYear={rows[0].fullPrior} />;
+              })}
+            </div>
+          );
+        return null;
+      })}
     </div>
   );
 }

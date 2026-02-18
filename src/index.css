@@ -1072,11 +1072,19 @@ body {
 .settings-panel__item {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 5px 0;
+  gap: 4px;
+  padding: 4px 0;
   font-size: 13px;
-  cursor: pointer;
   user-select: none;
+}
+
+.settings-panel__item-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+  cursor: pointer;
 }
 
 .settings-panel__item input[type="checkbox"] {
@@ -1084,10 +1092,43 @@ body {
   width: 16px;
   height: 16px;
   cursor: pointer;
+  flex-shrink: 0;
 }
 
 .settings-panel__item span {
   color: var(--color-text);
+}
+
+.settings-panel__arrows {
+  display: flex;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+.settings-panel__arrow-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  background: var(--color-surface);
+  cursor: pointer;
+  color: var(--color-text-secondary);
+  padding: 0;
+  transition: all 0.15s;
+}
+
+.settings-panel__arrow-btn:hover:not(:disabled) {
+  background: var(--color-bg);
+  color: var(--color-text);
+  border-color: var(--color-primary);
+}
+
+.settings-panel__arrow-btn:disabled {
+  opacity: 0.25;
+  cursor: default;
 }
 
 .settings-panel__icon--on {
