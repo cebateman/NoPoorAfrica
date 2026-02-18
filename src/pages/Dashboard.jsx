@@ -490,12 +490,6 @@ export default function Dashboard() {
                 {reviewMonthLabel} {reviewActualsYear} — Expense Bridges
               </h3>
 
-              {/* Combined narrative */}
-              <div className="bridge__narrative">
-                {bridgeData && <p>{bridgeData.narrative}</p>}
-                {yoyBridgeData && <p>{yoyBridgeData.narrative}</p>}
-              </div>
-
               {/* Notes from actuals with amounts */}
               {(() => {
                 const allNotes = monthlyExpDetail
@@ -518,12 +512,15 @@ export default function Dashboard() {
                 );
               })()}
 
-              {/* Side-by-side tables */}
+              {/* Side-by-side bridges: narrative + table per column */}
               <div className="bridge__grid">
                 {/* Budget Bridge */}
                 {bridgeData && (
-                  <div>
+                  <div className="bridge__column">
                     <h4 className="bridge__subtitle">vs Budget</h4>
+                    <div className="bridge__narrative">
+                      <p>{bridgeData.narrative}</p>
+                    </div>
                     <div className="fin-table-scroll">
                       <table className="fin-table bridge__table">
                         <thead>
@@ -560,8 +557,11 @@ export default function Dashboard() {
 
                 {/* YoY Bridge */}
                 {yoyBridgeData && (
-                  <div>
+                  <div className="bridge__column">
                     <h4 className="bridge__subtitle">vs Prior Year ({reviewPriorYr})</h4>
+                    <div className="bridge__narrative">
+                      <p>{yoyBridgeData.narrative}</p>
+                    </div>
                     <div className="fin-table-scroll">
                       <table className="fin-table bridge__table">
                         <thead>
