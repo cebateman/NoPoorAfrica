@@ -373,6 +373,7 @@ export function DataProvider({ children }) {
     restrictedRevenue,
     revenueCurrentRows,
     revenuePriorRows,
+    allRevenueRows,
 
     // Raw CSV text (for showing file info)
     mappingCSV,

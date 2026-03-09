@@ -1905,3 +1905,229 @@ body {
   background: #f3e8ff;
   color: #7c3aed;
 }
+
+/* ═══════════════════════════════════════════════
+   Donors Page
+   ═══════════════════════════════════════════════ */
+.donors-page {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.donors-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 60px 20px;
+  color: var(--color-text-secondary);
+  text-align: center;
+}
+
+.donors-empty h2 {
+  font-size: 18px;
+  color: var(--color-text);
+}
+
+.donors-empty p {
+  font-size: 14px;
+}
+
+.donors-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  background: var(--color-surface);
+  border-radius: var(--radius);
+  padding: 20px;
+  box-shadow: var(--shadow);
+}
+
+.donors-header__title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.donors-header__title h2 {
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.donors-header__stats {
+  display: flex;
+  gap: 24px;
+}
+
+.donors-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.donors-stat__label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  color: var(--color-text-secondary);
+}
+
+.donors-stat__value {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--color-primary);
+}
+
+.donors-controls {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.donors-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  flex: 1;
+  max-width: 400px;
+  color: var(--color-text-secondary);
+}
+
+.donors-search__input {
+  border: none;
+  outline: none;
+  font-size: 13px;
+  color: var(--color-text);
+  background: transparent;
+  width: 100%;
+}
+
+.donors-table-container {
+  background: var(--color-surface);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  overflow-x: auto;
+}
+
+.donors-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.donors-table__th {
+  text-align: left;
+  padding: 12px 16px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  color: var(--color-text-secondary);
+  border-bottom: 2px solid var(--color-border);
+  background: var(--color-bg);
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+  display: table-cell;
+}
+
+.donors-table__th:hover {
+  color: var(--color-text);
+}
+
+.donors-table__th--active {
+  color: var(--color-primary);
+}
+
+.donors-table__th svg {
+  vertical-align: middle;
+  margin-left: 4px;
+  opacity: 0.5;
+}
+
+.donors-table__sort-dir {
+  font-size: 9px;
+  margin-left: 2px;
+}
+
+.donors-table__row td {
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.donors-table__row:hover td {
+  background: #f8fafc;
+}
+
+.donors-table__row:last-child td {
+  border-bottom: none;
+}
+
+.donors-table__donor {
+  font-weight: 500;
+}
+
+.donors-table__date {
+  color: var(--color-text-secondary);
+  white-space: nowrap;
+}
+
+.donors-table__amount {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.donors-table__category {
+  color: var(--color-text-secondary);
+}
+
+.donors-table__empty {
+  text-align: center;
+  padding: 32px 16px;
+  color: var(--color-text-secondary);
+  font-style: italic;
+}
+
+.donors-table__total-row td {
+  padding: 12px 16px;
+  border-top: 2px solid var(--color-text);
+  background: var(--color-bg);
+}
+
+@media (max-width: 768px) {
+  .donors-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .donors-header__stats {
+    width: 100%;
+    justify-content: space-around;
+  }
+
+  .donors-controls {
+    flex-direction: column;
+  }
+
+  .donors-search {
+    max-width: 100%;
+  }
+}
+
+@media print {
+  .donors-controls {
+    display: none !important;
+  }
+}

@@ -5,6 +5,7 @@ import { CurrencyProvider } from './data/CurrencyContext';
 import Layout from './components/Layout';
 import Dashboard from './pages/Dashboard';
 import DataUpload from './pages/DataUpload';
+import Donors from './pages/Donors';
 import Login from './pages/Login';
 
 function ProtectedRoute({ children, adminOnly }) {
@@ -64,6 +65,7 @@ function AppRoutes() {
         }
       >
         <Route index element={<Dashboard />} />
+        <Route path="donors" element={<Donors />} />
         <Route
           path="upload"
           element={

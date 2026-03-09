@@ -1,5 +1,5 @@
 import { NavLink, Outlet } from 'react-router-dom';
-import { BarChart3, Upload, LogOut, Shield, User } from 'lucide-react';
+import { BarChart3, Upload, Users, LogOut, Shield, User } from 'lucide-react';
 import { useCurrency } from '../data/CurrencyContext';
 import { useAuth } from '../data/AuthContext';
 
@@ -30,6 +30,15 @@ export default function Layout() {
             >
               <BarChart3 size={16} />
               Dashboard
+            </NavLink>
+            <NavLink
+              to="/donors"
+              className={({ isActive }) =>
+                `nav-link ${isActive ? 'nav-link--active' : ''}`
+              }
+            >
+              <Users size={16} />
+              Donors
             </NavLink>
             {isAdmin && (
               <NavLink
