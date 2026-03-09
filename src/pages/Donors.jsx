@@ -18,7 +18,7 @@ function parseDate(str) {
 
 export default function Donors() {
   const { allRevenueRows, hasRevenue } = useData();
-  const { fmt } = useCurrency();
+  const { format } = useCurrency();
 
   const [sortField, setSortField] = useState('date');
   const [sortDir, setSortDir] = useState('desc');
@@ -110,7 +110,7 @@ export default function Donors() {
         <div className="donors-header__stats">
           <div className="donors-stat">
             <span className="donors-stat__label">Total Donations</span>
-            <span className="donors-stat__value">{fmt(totalAmount)}</span>
+            <span className="donors-stat__value">{format(totalAmount)}</span>
           </div>
           <div className="donors-stat">
             <span className="donors-stat__label">Donors</span>
@@ -179,7 +179,7 @@ export default function Donors() {
                 <tr key={i} className="donors-table__row">
                   <td className="donors-table__donor">{row.source || '—'}</td>
                   <td className="donors-table__date">{row.date || '—'}</td>
-                  <td className="donors-table__amount">{fmt(row.amountUSD || 0)}</td>
+                  <td className="donors-table__amount">{format(row.amountUSD || 0)}</td>
                   <td className="donors-table__category">{row.category || '—'}</td>
                 </tr>
               ))
@@ -190,7 +190,7 @@ export default function Donors() {
               <tr className="donors-table__total-row">
                 <td><strong>Total</strong></td>
                 <td></td>
-                <td className="donors-table__amount"><strong>{fmt(totalAmount)}</strong></td>
+                <td className="donors-table__amount"><strong>{format(totalAmount)}</strong></td>
                 <td></td>
               </tr>
             </tfoot>
