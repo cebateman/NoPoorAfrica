@@ -10,10 +10,16 @@ const SORT_FIELDS = [
   { key: 'category', label: 'Category' },
 ];
 
-function parseDate(str) {
-  if (!str) return new Date(0);
-  const d = new Date(str);
-  return isNaN(d.getTime()) ? new Date(0) : d;
+const MONTH_NAMES = [
+  '', 'January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December',
+];
+
+function formatMonthYear(row) {
+  if (row.month && row.year) {
+    return `${MONTH_NAMES[row.month] || row.month} ${row.year}`;
+  }
+  return row.date || '—';
 }
 
 export default function Donors() {
@@ -57,7 +63,7 @@ export default function Donors() {
       if (sortField === 'amountUSD') {
         cmp = (a.amountUSD || 0) - (b.amountUSD || 0);
       } else if (sortField === 'date') {
-        cmp = parseDate(a.date) - parseDate(b.date);
+        cmp = (a.year - b.year) || (a.month - b.month);
       } else {
         const aVal = (a[sortField] || '').toLowerCase();
         const bVal = (b[sortField] || '').toLowerCase();
@@ -178,7 +184,7 @@ export default function Donors() {
               filteredRows.map((row, i) => (
                 <tr key={i} className="donors-table__row">
                   <td className="donors-table__donor">{row.source || '—'}</td>
-                  <td className="donors-table__date">{row.date || '—'}</td>
+                  <td className="donors-table__date">{formatMonthYear(row)}</td>
                   <td className="donors-table__amount">{format(row.amountUSD || 0)}</td>
                   <td className="donors-table__category">{row.category || '—'}</td>
                 </tr>
