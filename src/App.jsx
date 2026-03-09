@@ -8,7 +8,7 @@ import DataUpload from './pages/DataUpload';
 import Donors from './pages/Donors';
 import Login from './pages/Login';
 
-function ProtectedRoute({ children, adminOnly }) {
+function ProtectedRoute({ children, adminOnly, pageId }) {
   const { user, profile, loading, authEnabled } = useAuth();
 
   // Firebase not configured — run in local mode, no auth required
@@ -41,6 +41,13 @@ function ProtectedRoute({ children, adminOnly }) {
     return <Navigate to="/" replace />;
   }
 
+  // Page access check for viewers
+  if (pageId && profile.role === 'viewer' && profile.allowedPages) {
+    if (!profile.allowedPages.includes(pageId)) {
+      return <Navigate to="/" replace />;
+    }
+  }
+
   return children;
 }
 
@@ -64,8 +71,8 @@ function AppRoutes() {
           </ProtectedRoute>
         }
       >
-        <Route index element={<Dashboard />} />
-        <Route path="donors" element={<Donors />} />
+        <Route index element={<ProtectedRoute pageId="dashboard"><Dashboard /></ProtectedRoute>} />
+        <Route path="donors" element={<ProtectedRoute pageId="donors"><Donors /></ProtectedRoute>} />
         <Route
           path="upload"
           element={

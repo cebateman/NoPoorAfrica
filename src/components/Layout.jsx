@@ -6,6 +6,8 @@ import { useAuth } from '../data/AuthContext';
 export default function Layout() {
   const { currency, toggle } = useCurrency();
   const { profile, isAdmin, logout, authEnabled } = useAuth();
+  const allowedPages = profile?.allowedPages;
+  const canView = (pageId) => isAdmin || !allowedPages || allowedPages.includes(pageId);
 
   return (
     <div className="layout">
@@ -21,25 +23,29 @@ export default function Layout() {
         </div>
         <div className="header-right">
           <nav className="nav">
-            <NavLink
-              to="/"
-              end
-              className={({ isActive }) =>
-                `nav-link ${isActive ? 'nav-link--active' : ''}`
-              }
-            >
-              <BarChart3 size={16} />
-              Dashboard
-            </NavLink>
-            <NavLink
-              to="/donors"
-              className={({ isActive }) =>
-                `nav-link ${isActive ? 'nav-link--active' : ''}`
-              }
-            >
-              <Users size={16} />
-              Donors
-            </NavLink>
+            {canView('dashboard') && (
+              <NavLink
+                to="/"
+                end
+                className={({ isActive }) =>
+                  `nav-link ${isActive ? 'nav-link--active' : ''}`
+                }
+              >
+                <BarChart3 size={16} />
+                Dashboard
+              </NavLink>
+            )}
+            {canView('donors') && (
+              <NavLink
+                to="/donors"
+                className={({ isActive }) =>
+                  `nav-link ${isActive ? 'nav-link--active' : ''}`
+                }
+              >
+                <Users size={16} />
+                Donors
+              </NavLink>
+            )}
             {isAdmin && (
               <NavLink
                 to="/upload"

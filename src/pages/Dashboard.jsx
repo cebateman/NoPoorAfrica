@@ -143,7 +143,12 @@ function saveSectionOrder(order) {
 }
 
 // ── Admin User Management Panel ──
-function UserManagementPanel({ createViewerAccount, listUsers, removeUser }) {
+const AVAILABLE_PAGES = [
+  { id: 'dashboard', label: 'Dashboard' },
+  { id: 'donors', label: 'Donors' },
+];
+
+function UserManagementPanel({ createViewerAccount, listUsers, removeUser, updateUserPages }) {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [newEmail, setNewEmail] = useState('');
@@ -198,6 +203,21 @@ function UserManagementPanel({ createViewerAccount, listUsers, removeUser }) {
       setError(err.message);
     }
   }, [removeUser, fetchUsers]);
+
+  const handleTogglePage = useCallback(async (uid, pageId, currentPages) => {
+    const pages = currentPages || AVAILABLE_PAGES.map((p) => p.id);
+    const updated = pages.includes(pageId)
+      ? pages.filter((p) => p !== pageId)
+      : [...pages, pageId];
+    try {
+      await updateUserPages(uid, updated);
+      setUsers((prev) =>
+        prev.map((u) => (u.uid === uid ? { ...u, allowedPages: updated } : u))
+      );
+    } catch (err) {
+      setError(err.message);
+    }
+  }, [updateUserPages]);
 
   return (
     <div className="settings-panel user-mgmt-panel">
@@ -258,32 +278,54 @@ function UserManagementPanel({ createViewerAccount, listUsers, removeUser }) {
                 <th>Name</th>
                 <th>Email</th>
                 <th>Role</th>
+                <th>Page Access</th>
                 <th></th>
               </tr>
             </thead>
             <tbody>
-              {users.map((u) => (
-                <tr key={u.uid}>
-                  <td>{u.displayName || '—'}</td>
-                  <td>{u.email}</td>
-                  <td>
-                    <span className={`user-mgmt__role user-mgmt__role--${u.role}`}>
-                      {u.role}
-                    </span>
-                  </td>
-                  <td>
-                    {u.role !== 'admin' && (
-                      <button
-                        className="btn btn--sm btn--danger"
-                        onClick={() => handleRemove(u.uid, u.email)}
-                        title="Remove access"
-                      >
-                        <Trash2 size={12} />
-                      </button>
-                    )}
-                  </td>
-                </tr>
-              ))}
+              {users.map((u) => {
+                const pages = u.allowedPages || AVAILABLE_PAGES.map((p) => p.id);
+                return (
+                  <tr key={u.uid}>
+                    <td>{u.displayName || '—'}</td>
+                    <td>{u.email}</td>
+                    <td>
+                      <span className={`user-mgmt__role user-mgmt__role--${u.role}`}>
+                        {u.role}
+                      </span>
+                    </td>
+                    <td>
+                      {u.role === 'admin' ? (
+                        <span className="user-mgmt__hint-text">All pages</span>
+                      ) : (
+                        <div className="user-mgmt__page-checks">
+                          {AVAILABLE_PAGES.map((pg) => (
+                            <label key={pg.id} className="user-mgmt__page-label">
+                              <input
+                                type="checkbox"
+                                checked={pages.includes(pg.id)}
+                                onChange={() => handleTogglePage(u.uid, pg.id, pages)}
+                              />
+                              {pg.label}
+                            </label>
+                          ))}
+                        </div>
+                      )}
+                    </td>
+                    <td>
+                      {u.role !== 'admin' && (
+                        <button
+                          className="btn btn--sm btn--danger"
+                          onClick={() => handleRemove(u.uid, u.email)}
+                          title="Remove access"
+                        >
+                          <Trash2 size={12} />
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         )}
@@ -300,7 +342,7 @@ export default function Dashboard() {
     sharedSettings, saveDashboardSettings,
   } = useData();
   const { format } = useCurrency();
-  const { isAdmin, isViewer, authEnabled, createViewerAccount, listUsers, removeUser } = useAuth();
+  const { isAdmin, isViewer, authEnabled, createViewerAccount, listUsers, removeUser, updateUserPages } = useAuth();
   const [selectedCenter, setSelectedCenter] = useState('');
   const [showSettings, setShowSettings] = useState(false);
   const [showUserMgmt, setShowUserMgmt] = useState(false);
@@ -649,6 +691,7 @@ export default function Dashboard() {
           createViewerAccount={createViewerAccount}
           listUsers={listUsers}
           removeUser={removeUser}
+          updateUserPages={updateUserPages}
         />
       )}
 

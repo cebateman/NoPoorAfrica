@@ -129,6 +129,7 @@ export function AuthProvider({ children }) {
         role: 'viewer',
         email,
         displayName: displayName || email.split('@')[0],
+        allowedPages: ['dashboard', 'donors'],
         createdAt: serverTimestamp(),
       };
       await setDoc(doc(db, 'users', cred.user.uid), newProfile);
@@ -174,6 +175,12 @@ export function AuthProvider({ children }) {
     await setDoc(doc(db, 'users', uid), { role: newRole }, { merge: true });
   }, [authEnabled, isAdmin]);
 
+  // Admin: update which pages a user can access
+  const updateUserPages = useCallback(async (uid, allowedPages) => {
+    if (!authEnabled || !isAdmin) throw new Error('Unauthorized');
+    await setDoc(doc(db, 'users', uid), { allowedPages }, { merge: true });
+  }, [authEnabled, isAdmin]);
+
   const clearError = useCallback(() => setError(null), []);
 
   const value = {
@@ -191,6 +198,7 @@ export function AuthProvider({ children }) {
     listUsers,
     removeUser,
     updateUserRole,
+    updateUserPages,
     clearError,
   };
 
