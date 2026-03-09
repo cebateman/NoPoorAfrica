@@ -446,6 +446,10 @@ body {
   background: var(--color-unfavorable);
 }
 
+.progress-bar__fill--under {
+  background: var(--color-favorable);
+}
+
 .progress-bar__marker {
   position: absolute;
   top: -3px;
@@ -478,6 +482,14 @@ body {
 .progress-bar__pct {
   font-weight: 600;
   color: var(--color-primary);
+}
+
+.progress-bar__pct--over {
+  color: var(--color-unfavorable);
+}
+
+.progress-bar__pct--under {
+  color: var(--color-favorable);
 }
 
 /* ── Leadership List ── */

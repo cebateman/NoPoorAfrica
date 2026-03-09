@@ -1047,7 +1047,7 @@ export default function Dashboard() {
               <h3 className="section__title">Annual Budget Utilization — Expenses</h3>
               {expenseCategories.filter((cat) => cat.budgetAnnual > 0).map((cat) => {
                 const rows = buildCategorySummary([cat]);
-                return <BudgetProgressBar key={cat.id} label={cat.name} actual={rows[0].ytdActual} budget={cat.budgetAnnual} priorYear={rows[0].fullPrior} />;
+                return <BudgetProgressBar key={cat.id} label={cat.name} actual={rows[0].ytdActual} budget={cat.budgetAnnual} priorYear={rows[0].fullPrior} monthsCompleted={maxActualMonths} />;
               })}
             </div>
           );
@@ -1057,7 +1057,7 @@ export default function Dashboard() {
               <h3 className="section__title">Annual Budget Utilization — Revenue</h3>
               {allRevenue.filter((cat) => cat.budgetAnnual > 0).map((cat) => {
                 const rows = buildCategorySummary([cat]);
-                return <BudgetProgressBar key={cat.id} label={cat.name} actual={rows[0].ytdActual} budget={cat.budgetAnnual} priorYear={rows[0].fullPrior} />;
+                return <BudgetProgressBar key={cat.id} label={cat.name} actual={rows[0].ytdActual} budget={cat.budgetAnnual} priorYear={rows[0].fullPrior} monthsCompleted={maxActualMonths} />;
               })}
             </div>
           );

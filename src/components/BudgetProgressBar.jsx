@@ -1,12 +1,15 @@
 import { useCurrency } from '../data/CurrencyContext';
 
-export default function BudgetProgressBar({ label, actual, budget, priorYear, location }) {
+export default function BudgetProgressBar({ label, actual, budget, priorYear, location, monthsCompleted = 1 }) {
   const { format } = useCurrency();
   const pct = budget > 0 ? (actual / budget) * 100 : 0;
   const priorPct = budget > 0 ? (priorYear / budget) * 100 : 0;
   const cappedPct = Math.min(pct, 100);
 
-  const expectedPct = (1 / 12) * 100;
+  // Expected position based on how far through the year we are
+  const expectedPct = (monthsCompleted / 12) * 100;
+  const isOver = pct > expectedPct + 5;
+  const isUnder = pct < expectedPct - 5;
 
   return (
     <div className="progress-bar-row">
@@ -16,13 +19,13 @@ export default function BudgetProgressBar({ label, actual, budget, priorYear, lo
       </div>
       <div className="progress-bar__track">
         <div
-          className={`progress-bar__fill ${pct > expectedPct + 5 ? 'progress-bar__fill--over' : ''}`}
+          className={`progress-bar__fill ${isOver ? 'progress-bar__fill--over' : ''} ${isUnder ? 'progress-bar__fill--under' : ''}`}
           style={{ width: `${cappedPct}%` }}
         />
         <div
           className="progress-bar__marker progress-bar__marker--expected"
           style={{ left: `${expectedPct}%` }}
-          title={`Expected: ${expectedPct.toFixed(1)}%`}
+          title={`Expected pace: ${expectedPct.toFixed(1)}% (${monthsCompleted} of 12 months)`}
         />
         {priorPct > 0 && (
           <div
@@ -35,7 +38,9 @@ export default function BudgetProgressBar({ label, actual, budget, priorYear, lo
       <div className="progress-bar__values">
         <span>{format(actual)}</span>
         <span className="progress-bar__of">of {format(budget)}</span>
-        <span className="progress-bar__pct">({pct.toFixed(1)}%)</span>
+        <span className={`progress-bar__pct ${isOver ? 'progress-bar__pct--over' : ''} ${isUnder ? 'progress-bar__pct--under' : ''}`}>
+          ({pct.toFixed(1)}%)
+        </span>
       </div>
     </div>
   );
