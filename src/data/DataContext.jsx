@@ -283,6 +283,11 @@ export function DataProvider({ children }) {
     ? Math.max(...getDataMonths(actualsRows)) - 1 // Convert 1-based month to 0-based index
     : -1;
 
+  // Categories excluded from reporting (not reported on going forward)
+  const EXCLUDED_CATEGORIES = ['loan'];
+  const isExcludedCategory = (cat) =>
+    EXCLUDED_CATEGORIES.includes((cat.name || '').toLowerCase().trim());
+
   // Build dashboard categories by center
   const getCategoriesForCenter = useCallback(
     (center) => {
@@ -293,13 +298,14 @@ export function DataProvider({ children }) {
         filterByCenter(actualsRows),
         filterByCenter(filteredBudgetRows),
         filterByCenter(priorYearRows),
-      );
+      ).filter((c) => !isExcludedCategory(c));
     },
     [actualsRows, filteredBudgetRows, priorYearRows],
   );
 
   // Build all-center categories
-  const allCategories = buildDashboardCategories(actualsRows, filteredBudgetRows, priorYearRows);
+  const allCategories = buildDashboardCategories(actualsRows, filteredBudgetRows, priorYearRows)
+    .filter((c) => !isExcludedCategory(c));
 
   // Upload handlers — admin syncs to Firestore, local always saves to localStorage
   const uploadMapping = useCallback((text) => {
