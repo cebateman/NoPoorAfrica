@@ -57,6 +57,7 @@ const PIE_COLORS = ['#2563eb', '#7c3aed', '#059669', '#d97706', '#dc2626', '#089
 
 // ── Dashboard section definitions ──
 const SECTIONS = [
+  { id: 'fullYearOutlook', label: 'Full Year Outlook (YTD + Budgeted Remaining)', group: 'Forecast' },
   { id: 'monthlyKpis',    label: 'Monthly KPI Cards',            group: 'Monthly Review' },
   { id: 'monthlyBridge',  label: 'Monthly Budget Bridge',         group: 'Monthly Review' },
   { id: 'monthlyDetail',  label: 'Monthly Category Breakdown',   group: 'Monthly Review' },
@@ -448,6 +449,58 @@ export default function Dashboard() {
   );
   const dataMonthLabel = maxActualMonths > 0 ? MONTHS[maxActualMonths - 1] : null;
 
+  // ── Full Year Outlook: YTD Actuals + Budgeted Remaining ──
+  // Builds a per-category forecast assuming remaining months hit budget.
+  const outlookRows = useMemo(() => {
+    if (!hasData || expenseCategories.length === 0) return [];
+    return expenseCategories.map((cat) => {
+      const actuals = cat.actualMonthly || [];
+      const budget = cat.budgetMonthly || [];
+      const ytdActual = actuals.reduce((s, v) => s + v, 0);
+      // Remaining = budget from (maxActualMonths) through end of year
+      const budgetRemaining = budget
+        .slice(maxActualMonths)
+        .reduce((s, v) => s + v, 0);
+      const outlook = ytdActual + budgetRemaining;
+      const budgetAnnual = cat.budgetAnnual || 0;
+      const variance = outlook - budgetAnnual;
+      const variancePct = budgetAnnual !== 0 ? variance / budgetAnnual : 0;
+      return {
+        id: cat.id,
+        name: cat.name,
+        ytdActual,
+        budgetRemaining,
+        outlook,
+        budgetAnnual,
+        variance,
+        variancePct,
+      };
+    });
+  }, [hasData, expenseCategories, maxActualMonths]);
+
+  const outlookTotals = useMemo(() => {
+    const t = outlookRows.reduce(
+      (acc, r) => ({
+        ytdActual: acc.ytdActual + r.ytdActual,
+        budgetRemaining: acc.budgetRemaining + r.budgetRemaining,
+        outlook: acc.outlook + r.outlook,
+        budgetAnnual: acc.budgetAnnual + r.budgetAnnual,
+      }),
+      { ytdActual: 0, budgetRemaining: 0, outlook: 0, budgetAnnual: 0 },
+    );
+    const variance = t.outlook - t.budgetAnnual;
+    const variancePct = t.budgetAnnual !== 0 ? variance / t.budgetAnnual : 0;
+    return { ...t, variance, variancePct };
+  }, [outlookRows]);
+
+  // Labels for period headers
+  const ytdLabel = maxActualMonths > 0
+    ? `YTD Actual (Jan\u2013${MONTHS[maxActualMonths - 1]})`
+    : 'YTD Actual';
+  const remainingLabel = maxActualMonths > 0 && maxActualMonths < 12
+    ? `Budgeted Remaining (${MONTHS[maxActualMonths]}\u2013Dec)`
+    : 'Budgeted Remaining';
+
   // ── Revenue ──
   const revActual = ytdTotal(activeRevenue);
   const revBudget = ytdBudgetTotal(activeRevenue);
@@ -783,6 +836,72 @@ export default function Dashboard() {
       {/* ══════════════════════════════════════════════
            Sections rendered in user-defined order per group
          ══════════════════════════════════════════════ */}
+
+      {/* ── Full Year Outlook (YTD Actual + Budgeted Remaining) ── */}
+      {show('fullYearOutlook') && outlookRows.length > 0 && (
+        <div className="section full-year-outlook">
+          <h3 className="section__title">
+            <TrendingUp size={16} style={{ verticalAlign: 'middle', marginRight: 6 }} />
+            Full Year Outlook {year && `— ${year}`}
+          </h3>
+          <p className="full-year-outlook__subtitle">
+            {maxActualMonths > 0
+              ? `Actuals through ${MONTHS[maxActualMonths - 1]} ${year || ''} plus budgeted spend for the remainder of the year.`
+              : 'Outlook based on annual budget (no actuals uploaded yet).'}
+          </p>
+          <div className="fin-table-scroll">
+            <table className="fin-table full-year-outlook__table">
+              <thead>
+                <tr>
+                  <th className="fin-table__category">Category</th>
+                  <th>{ytdLabel}</th>
+                  <th>{remainingLabel}</th>
+                  <th>Full Year Outlook</th>
+                  <th>Full Year Budget</th>
+                  <th>Variance $</th>
+                  <th>Variance %</th>
+                </tr>
+              </thead>
+              <tbody>
+                {outlookRows.map((r) => {
+                  const overBudget = r.variance > 0;
+                  const varClass = overBudget ? 'unfavorable' : 'favorable';
+                  return (
+                    <tr key={r.id}>
+                      <td className="fin-table__category">{r.name}</td>
+                      <td>{format(r.ytdActual)}</td>
+                      <td>{format(r.budgetRemaining)}</td>
+                      <td><strong>{format(r.outlook)}</strong></td>
+                      <td>{format(r.budgetAnnual)}</td>
+                      <td className={varClass}>
+                        {overBudget ? '+' : ''}{format(r.variance)}
+                      </td>
+                      <td className={varClass}>
+                        {(r.variancePct * 100).toFixed(1)}%
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+              <tfoot>
+                <tr className="fin-table__total-row">
+                  <td className="fin-table__category"><strong>Total</strong></td>
+                  <td><strong>{format(outlookTotals.ytdActual)}</strong></td>
+                  <td><strong>{format(outlookTotals.budgetRemaining)}</strong></td>
+                  <td><strong>{format(outlookTotals.outlook)}</strong></td>
+                  <td><strong>{format(outlookTotals.budgetAnnual)}</strong></td>
+                  <td className={outlookTotals.variance > 0 ? 'unfavorable' : 'favorable'}>
+                    <strong>{outlookTotals.variance > 0 ? '+' : ''}{format(outlookTotals.variance)}</strong>
+                  </td>
+                  <td className={outlookTotals.variance > 0 ? 'unfavorable' : 'favorable'}>
+                    <strong>{(outlookTotals.variancePct * 100).toFixed(1)}%</strong>
+                  </td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        </div>
+      )}
 
       {/* ── Monthly Business Review ── */}
       {(show('monthlyKpis') || show('monthlyBridge') || show('monthlyDetail')) && reviewMonthIdx >= 0 && (

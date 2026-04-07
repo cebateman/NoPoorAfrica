@@ -1931,6 +1931,35 @@ body {
 }
 
 /* ═══════════════════════════════════════════════
+   Full Year Outlook
+   ═══════════════════════════════════════════════ */
+.full-year-outlook {
+  border-left: 4px solid var(--color-accent);
+}
+
+.full-year-outlook__subtitle {
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  margin: -6px 0 14px;
+  line-height: 1.5;
+}
+
+.full-year-outlook__table {
+  width: 100%;
+}
+
+.full-year-outlook__table th,
+.full-year-outlook__table td {
+  white-space: nowrap;
+}
+
+.full-year-outlook__table th:not(.fin-table__category),
+.full-year-outlook__table td:not(.fin-table__category) {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ═══════════════════════════════════════════════
    Donors Page
    ═══════════════════════════════════════════════ */
 .donors-page {
