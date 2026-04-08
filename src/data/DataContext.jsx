@@ -275,6 +275,9 @@ export function DataProvider({ children }) {
   // Get metadata from data
   const allRows = [...filteredBudgetRows, ...allActualsRows];
   const centers = uniqueValues(allRows, 'centerLocation');
+  const hasUsData = allRows.some(
+    (r) => (r.centerLocation || '').trim().toLowerCase() === 'us',
+  );
   const dataYears = actualsYears.length > 0 ? actualsYears : getDataYears(allRows);
   const dataMonths = getDataMonths(hasActuals ? actualsRows : filteredBudgetRows);
 
@@ -288,22 +291,33 @@ export function DataProvider({ children }) {
   const isExcludedCategory = (cat) =>
     EXCLUDED_CATEGORIES.includes((cat.name || '').toLowerCase().trim());
 
-  // Build dashboard categories by center
+  // Location scope filter: 'all' | 'excludeUs' | 'usOnly'
+  // Rows are tagged as "US" via centerLocation in the uploaded CSV.
+  const isUsRow = (r) => (r.centerLocation || '').trim().toLowerCase() === 'us';
+  const filterByLocationScope = useCallback((rows, scope) => {
+    if (!scope || scope === 'all') return rows;
+    if (scope === 'excludeUs') return rows.filter((r) => !isUsRow(r));
+    if (scope === 'usOnly') return rows.filter((r) => isUsRow(r));
+    return rows;
+  }, []);
+
+  // Build dashboard categories by center and/or location scope
   const getCategoriesForCenter = useCallback(
-    (center) => {
+    (center, locationScope = 'all') => {
       const filterByCenter = (rows) =>
         center ? rows.filter((r) => r.centerLocation === center) : rows;
+      const applyFilters = (rows) => filterByLocationScope(filterByCenter(rows), locationScope);
 
       return buildDashboardCategories(
-        filterByCenter(actualsRows),
-        filterByCenter(filteredBudgetRows),
-        filterByCenter(priorYearRows),
+        applyFilters(actualsRows),
+        applyFilters(filteredBudgetRows),
+        applyFilters(priorYearRows),
       ).filter((c) => !isExcludedCategory(c));
     },
-    [actualsRows, filteredBudgetRows, priorYearRows],
+    [actualsRows, filteredBudgetRows, priorYearRows, filterByLocationScope],
   );
 
-  // Build all-center categories
+  // Build all-center categories (no scope filter applied by default)
   const allCategories = buildDashboardCategories(actualsRows, filteredBudgetRows, priorYearRows)
     .filter((c) => !isExcludedCategory(c));
 
@@ -357,6 +371,7 @@ export function DataProvider({ children }) {
     hasPriorYear,
     hasRevenue,
     hasData,
+    hasUsData,
     mapping,
     budgetRows,
     actualsRows,

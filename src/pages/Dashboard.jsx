@@ -58,6 +58,7 @@ const PIE_COLORS = ['#2563eb', '#7c3aed', '#059669', '#d97706', '#dc2626', '#089
 // ── Dashboard section definitions ──
 const SECTIONS = [
   { id: 'fullYearOutlook', label: 'Full Year Outlook (YTD + Budgeted Remaining)', group: 'Forecast' },
+  { id: 'yoyQuarterly',    label: 'YoY Quarterly Comparison',                     group: 'Forecast' },
   { id: 'monthlyKpis',    label: 'Monthly KPI Cards',            group: 'Monthly Review' },
   { id: 'monthlyBridge',  label: 'Monthly Budget Bridge',         group: 'Monthly Review' },
   { id: 'monthlyDetail',  label: 'Monthly Category Breakdown',   group: 'Monthly Review' },
@@ -337,7 +338,7 @@ function UserManagementPanel({ createViewerAccount, listUsers, removeUser, updat
 
 export default function Dashboard() {
   const {
-    hasData, hasRevenue, revenueCategories, operatingRevenue, restrictedRevenue,
+    hasData, hasRevenue, hasUsData, revenueCategories, operatingRevenue, restrictedRevenue,
     allCategories, centers, getCategoriesForCenter, dataYears, actualsYear,
     priorYear, budgetYear, revenueCurrentYear, revenuePriorYear,
     sharedSettings, saveDashboardSettings,
@@ -345,6 +346,7 @@ export default function Dashboard() {
   const { format } = useCurrency();
   const { isAdmin, isViewer, authEnabled, createViewerAccount, listUsers, removeUser, updateUserPages } = useAuth();
   const [selectedCenter, setSelectedCenter] = useState('');
+  const [locationScope, setLocationScope] = useState('all'); // 'all' | 'excludeUs' | 'usOnly'
   const [showSettings, setShowSettings] = useState(false);
   const [showUserMgmt, setShowUserMgmt] = useState(false);
   const [visibility, setVisibility] = useState(loadSectionVisibility);
@@ -436,8 +438,11 @@ export default function Dashboard() {
   const activeRestricted = hasRevenue ? restrictedRevenue : [];
 
   // Expense categories from uploaded data
+  // Applies both center filter and location scope filter (US include/exclude/only)
   const expenseCategories = hasData
-    ? (selectedCenter ? getCategoriesForCenter(selectedCenter) : allCategories)
+    ? (selectedCenter || locationScope !== 'all'
+        ? getCategoriesForCenter(selectedCenter, locationScope)
+        : allCategories)
     : [];
 
   const year = hasData && dataYears.length > 0 ? dataYears[dataYears.length - 1] : FISCAL_YEAR;
@@ -500,6 +505,67 @@ export default function Dashboard() {
   const remainingLabel = maxActualMonths > 0 && maxActualMonths < 12
     ? `Budgeted Remaining (${MONTHS[maxActualMonths]}\u2013Dec)`
     : 'Budgeted Remaining';
+
+  // ── YoY Quarterly Comparison ──
+  // For each category, compute prior year quarters (actuals) vs current year
+  // quarters (actual where uploaded, budget for months not yet reported).
+  const yoyQuarterly = useMemo(() => {
+    if (!hasData || expenseCategories.length === 0) return { rows: [], totals: null };
+    const quarterRanges = [[0, 2], [3, 5], [6, 8], [9, 11]]; // month index ranges
+
+    const rows = expenseCategories.map((cat) => {
+      const actuals = cat.actualMonthly || [];
+      const budget = cat.budgetMonthly || [];
+      const prior = cat.priorYearMonthly || [];
+
+      // Build current-year monthly: actuals where we have them, budget otherwise
+      const cyMonthly = [];
+      for (let m = 0; m < 12; m++) {
+        if (m < actuals.length) cyMonthly.push(actuals[m]);
+        else cyMonthly.push(budget[m] || 0);
+      }
+
+      const sumRange = (arr, [start, end]) => {
+        let s = 0;
+        for (let i = start; i <= end; i++) s += arr[i] || 0;
+        return s;
+      };
+
+      const pyQ = quarterRanges.map((r) => sumRange(prior, r));
+      const cyQ = quarterRanges.map((r) => sumRange(cyMonthly, r));
+      const pyTotal = pyQ.reduce((a, b) => a + b, 0);
+      const cyTotal = cyQ.reduce((a, b) => a + b, 0);
+      const yoyDollar = cyTotal - pyTotal;
+      const yoyPct = pyTotal !== 0 ? yoyDollar / pyTotal : 0;
+
+      return {
+        id: cat.id,
+        name: cat.name,
+        pyQ,
+        cyQ,
+        pyTotal,
+        cyTotal,
+        yoyDollar,
+        yoyPct,
+      };
+    });
+
+    const totals = rows.reduce(
+      (acc, r) => ({
+        pyQ: acc.pyQ.map((v, i) => v + r.pyQ[i]),
+        cyQ: acc.cyQ.map((v, i) => v + r.cyQ[i]),
+        pyTotal: acc.pyTotal + r.pyTotal,
+        cyTotal: acc.cyTotal + r.cyTotal,
+      }),
+      { pyQ: [0, 0, 0, 0], cyQ: [0, 0, 0, 0], pyTotal: 0, cyTotal: 0 },
+    );
+    totals.yoyDollar = totals.cyTotal - totals.pyTotal;
+    totals.yoyPct = totals.pyTotal !== 0 ? totals.yoyDollar / totals.pyTotal : 0;
+
+    return { rows, totals };
+  }, [hasData, expenseCategories]);
+
+  const hasYoyData = yoyQuarterly.rows.some((r) => r.pyTotal !== 0 || r.cyTotal !== 0);
 
   // ── Revenue ──
   const revActual = ytdTotal(activeRevenue);
@@ -815,21 +881,55 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* Center filter */}
-      {hasData && centers.length > 1 && (
+      {/* Filter bar: center + location scope */}
+      {hasData && (centers.length > 1 || hasUsData) && (
         <div className="filter-bar">
-          <label htmlFor="center-filter">Center:</label>
-          <select
-            id="center-filter"
-            value={selectedCenter}
-            onChange={(e) => setSelectedCenter(e.target.value)}
-            className="filter-select"
-          >
-            <option value="">All Centers</option>
-            {centers.map((c) => (
-              <option key={c} value={c}>{c}</option>
-            ))}
-          </select>
+          {centers.length > 1 && (
+            <>
+              <label htmlFor="center-filter">Center:</label>
+              <select
+                id="center-filter"
+                value={selectedCenter}
+                onChange={(e) => setSelectedCenter(e.target.value)}
+                className="filter-select"
+              >
+                <option value="">All Centers</option>
+                {centers.map((c) => (
+                  <option key={c} value={c}>{c}</option>
+                ))}
+              </select>
+            </>
+          )}
+          {hasUsData && (
+            <>
+              <label htmlFor="scope-filter" style={{ marginLeft: centers.length > 1 ? 16 : 0 }}>
+                Scope:
+              </label>
+              <div className="scope-toggle" role="group" aria-label="Location scope">
+                <button
+                  type="button"
+                  className={`scope-toggle__btn ${locationScope === 'all' ? 'scope-toggle__btn--active' : ''}`}
+                  onClick={() => setLocationScope('all')}
+                >
+                  All Locations
+                </button>
+                <button
+                  type="button"
+                  className={`scope-toggle__btn ${locationScope === 'excludeUs' ? 'scope-toggle__btn--active' : ''}`}
+                  onClick={() => setLocationScope('excludeUs')}
+                >
+                  Mozambique Only
+                </button>
+                <button
+                  type="button"
+                  className={`scope-toggle__btn ${locationScope === 'usOnly' ? 'scope-toggle__btn--active' : ''}`}
+                  onClick={() => setLocationScope('usOnly')}
+                >
+                  US Only
+                </button>
+              </div>
+            </>
+          )}
         </div>
       )}
 
@@ -895,6 +995,102 @@ export default function Dashboard() {
                   </td>
                   <td className={outlookTotals.variance > 0 ? 'unfavorable' : 'favorable'}>
                     <strong>{(outlookTotals.variancePct * 100).toFixed(1)}%</strong>
+                  </td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* ── YoY Quarterly Comparison ── */}
+      {show('yoyQuarterly') && hasYoyData && (
+        <div className="section yoy-quarterly">
+          <h3 className="section__title">
+            <TrendingUp size={16} style={{ verticalAlign: 'middle', marginRight: 6 }} />
+            Year-over-Year Quarterly Comparison
+            {priorYear && actualsYear && ` — ${priorYear} vs ${actualsYear}`}
+          </h3>
+          <p className="yoy-quarterly__subtitle">
+            Prior year quarters are actuals. Current year quarters are actuals where available,
+            budget for months not yet reported. Negative YoY means spending is down vs last year.
+          </p>
+          <div className="fin-table-scroll">
+            <table className="fin-table yoy-quarterly__table">
+              <thead>
+                <tr>
+                  <th rowSpan={2} className="fin-table__category">Category</th>
+                  <th colSpan={5} className="yoy-quarterly__group yoy-quarterly__group--py">
+                    {priorYear || 'Prior Year'} (Actual)
+                  </th>
+                  <th colSpan={5} className="yoy-quarterly__group yoy-quarterly__group--cy">
+                    {actualsYear || 'Current Year'} (Actual + Budget)
+                  </th>
+                  <th colSpan={2} className="yoy-quarterly__group yoy-quarterly__group--yoy">
+                    YoY Change
+                  </th>
+                </tr>
+                <tr>
+                  <th>Q1</th>
+                  <th>Q2</th>
+                  <th>Q3</th>
+                  <th>Q4</th>
+                  <th>Total</th>
+                  <th>Q1</th>
+                  <th>Q2</th>
+                  <th>Q3</th>
+                  <th>Q4</th>
+                  <th>Total</th>
+                  <th>$</th>
+                  <th>%</th>
+                </tr>
+              </thead>
+              <tbody>
+                {yoyQuarterly.rows
+                  .filter((r) => r.pyTotal !== 0 || r.cyTotal !== 0)
+                  .map((r) => {
+                    const down = r.yoyDollar < 0;
+                    const varClass = down ? 'favorable' : 'unfavorable';
+                    return (
+                      <tr key={r.id}>
+                        <td className="fin-table__category">{r.name}</td>
+                        {r.pyQ.map((v, i) => <td key={`py${i}`}>{format(v)}</td>)}
+                        <td><strong>{format(r.pyTotal)}</strong></td>
+                        {r.cyQ.map((v, i) => <td key={`cy${i}`}>{format(v)}</td>)}
+                        <td><strong>{format(r.cyTotal)}</strong></td>
+                        <td className={varClass}>
+                          {down ? '' : '+'}{format(r.yoyDollar)}
+                        </td>
+                        <td className={varClass}>
+                          {r.pyTotal !== 0 ? `${(r.yoyPct * 100).toFixed(1)}%` : '—'}
+                        </td>
+                      </tr>
+                    );
+                  })}
+              </tbody>
+              <tfoot>
+                <tr className="fin-table__total-row">
+                  <td className="fin-table__category"><strong>Total</strong></td>
+                  {yoyQuarterly.totals.pyQ.map((v, i) => (
+                    <td key={`ptot${i}`}><strong>{format(v)}</strong></td>
+                  ))}
+                  <td><strong>{format(yoyQuarterly.totals.pyTotal)}</strong></td>
+                  {yoyQuarterly.totals.cyQ.map((v, i) => (
+                    <td key={`ctot${i}`}><strong>{format(v)}</strong></td>
+                  ))}
+                  <td><strong>{format(yoyQuarterly.totals.cyTotal)}</strong></td>
+                  <td className={yoyQuarterly.totals.yoyDollar < 0 ? 'favorable' : 'unfavorable'}>
+                    <strong>
+                      {yoyQuarterly.totals.yoyDollar < 0 ? '' : '+'}
+                      {format(yoyQuarterly.totals.yoyDollar)}
+                    </strong>
+                  </td>
+                  <td className={yoyQuarterly.totals.yoyDollar < 0 ? 'favorable' : 'unfavorable'}>
+                    <strong>
+                      {yoyQuarterly.totals.pyTotal !== 0
+                        ? `${(yoyQuarterly.totals.yoyPct * 100).toFixed(1)}%`
+                        : '—'}
+                    </strong>
                   </td>
                 </tr>
               </tfoot>
