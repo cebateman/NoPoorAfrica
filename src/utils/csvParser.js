@@ -11,13 +11,32 @@ export function parseCSV(text) {
   const headers = lines[0].split(delimiter).map((h) => h.trim());
 
   return lines.slice(1).map((line) => {
-    const values = splitCSVLine(line, delimiter);
+    // For comma-delimited files, protect commas inside obvious number
+    // patterns (e.g. "$378,000.00") so they aren't treated as separators.
+    // Common CSV exports don't quote numeric fields — without this,
+    // thousands separators would corrupt row parsing.
+    const protectedLine = delimiter === ',' ? protectCommasInNumbers(line) : line;
+    const values = splitCSVLine(protectedLine, delimiter).map((v) =>
+      v.replace(/\u0000/g, ','),
+    );
     const row = {};
     headers.forEach((h, i) => {
       row[h] = (values[i] || '').trim();
     });
     return row;
   });
+}
+
+/**
+ * Replace commas inside numeric patterns with a placeholder (NUL char)
+ * so CSV splitting doesn't treat them as field separators.
+ * Matches patterns like: 1,234 | $1,234.56 | -1,234,567.89
+ */
+function protectCommasInNumbers(line) {
+  return line.replace(
+    /(\$?-?\d{1,3}(?:,\d{3})+(?:\.\d+)?)/g,
+    (match) => match.replace(/,/g, '\u0000'),
+  );
 }
 
 /**
