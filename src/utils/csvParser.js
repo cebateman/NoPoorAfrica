@@ -30,11 +30,17 @@ export function parseCSV(text) {
 /**
  * Replace commas inside numeric patterns with a placeholder (NUL char)
  * so CSV splitting doesn't treat them as field separators.
- * Matches patterns like: 1,234 | $1,234.56 | -1,234,567.89
+ * Matches patterns like: $1,234.56 | -1,234,567.89
+ *
+ * The pattern requires a currency symbol so we don't accidentally
+ * match adjacent integer columns like "7,2025" (month,year) as a
+ * thousands-separated number. This is safer than relying on lookaheads
+ * alone because grouped digits (,\d{3}) can greedily eat the first 3
+ * digits of the next column.
  */
 function protectCommasInNumbers(line) {
   return line.replace(
-    /(\$?-?\d{1,3}(?:,\d{3})+(?:\.\d+)?)/g,
+    /(?<!\d)(\$-?|-?\$)\d{1,3}(?:,\d{3})+(?:\.\d+)?(?!\d)/g,
     (match) => match.replace(/,/g, '\u0000'),
   );
 }
