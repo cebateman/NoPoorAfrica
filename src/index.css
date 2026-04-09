@@ -866,6 +866,13 @@ body {
   color: var(--color-text);
 }
 
+.upload-summary__hint {
+  margin: 0 0 12px 0;
+  color: var(--color-text-secondary);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
 .upload-clear {
   display: flex;
   justify-content: flex-end;

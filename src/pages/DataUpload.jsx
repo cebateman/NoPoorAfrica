@@ -223,6 +223,70 @@ export default function DataUpload() {
         ))}
       </div>
 
+      {/* Actuals by center diagnostic — helps verify uploads (esp. US) */}
+      {data.hasActuals && data.actualsByCenter.length > 0 && (
+        <div className="upload-summary">
+          <h3>Expense Actuals by Location</h3>
+          <div className="fin-table-scroll">
+            <table className="fin-table">
+              <thead>
+                <tr>
+                  <th className="fin-table__category">Center / Location</th>
+                  <th>Rows</th>
+                  <th>Years</th>
+                  <th>Total (USD)</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.actualsByCenter.map((g) => (
+                  <tr key={g.center}>
+                    <td className="fin-table__category">{g.center}</td>
+                    <td>{g.rows.toLocaleString()}</td>
+                    <td>{g.years.join(', ')}</td>
+                    <td><strong>{format(g.totalUSD)}</strong></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* Unmapped line items — flags rows with no mapping entry */}
+      {data.hasActuals && data.unmappedLineItems.length > 0 && (
+        <div className="upload-summary">
+          <h3>
+            <AlertCircle size={16} style={{ verticalAlign: 'middle', marginRight: 6 }} />
+            Unmapped Line Items ({data.unmappedLineItems.length})
+          </h3>
+          <p className="upload-summary__hint">
+            These line items have no entry in the mapping CSV. They still appear in
+            the dashboard — grouped under their line item name as a fallback expense
+            type. Add them to your mapping CSV to roll them up into standard categories.
+          </p>
+          <div className="fin-table-scroll">
+            <table className="fin-table">
+              <thead>
+                <tr>
+                  <th className="fin-table__category">Line Item</th>
+                  <th>Center(s)</th>
+                  <th>Rows</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.unmappedLineItems.map((item) => (
+                  <tr key={item.lineItem}>
+                    <td className="fin-table__category">{item.lineItem}</td>
+                    <td>{item.centers.join(', ')}</td>
+                    <td>{item.count}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
       {/* Data summary */}
       {(data.hasData || data.hasRevenue) && (
         <div className="upload-summary">

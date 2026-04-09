@@ -281,6 +281,48 @@ export function DataProvider({ children }) {
   const dataYears = actualsYears.length > 0 ? actualsYears : getDataYears(allRows);
   const dataMonths = getDataMonths(hasActuals ? actualsRows : filteredBudgetRows);
 
+  // ── Diagnostics: actuals row counts / totals broken down by center ──
+  // Helps the user verify their uploaded data is being read correctly
+  // (especially useful when adding new locations like US).
+  const actualsByCenter = useMemo(() => {
+    const groups = {};
+    allActualsRows.forEach((r) => {
+      const key = (r.centerLocation || 'Unknown').trim() || 'Unknown';
+      if (!groups[key]) groups[key] = { rows: 0, totalUSD: 0, years: new Set() };
+      groups[key].rows += 1;
+      groups[key].totalUSD += r.amountUSD || 0;
+      groups[key].years.add(r.year);
+    });
+    return Object.entries(groups)
+      .map(([center, g]) => ({
+        center,
+        rows: g.rows,
+        totalUSD: g.totalUSD,
+        years: [...g.years].sort(),
+      }))
+      .sort((a, b) => b.totalUSD - a.totalUSD);
+  }, [allActualsRows]);
+
+  // List of unique line items in actuals that have no mapping entry.
+  // These fall back to the line item name as their expense type. Surfacing
+  // them helps the user decide whether to add mapping rows.
+  const unmappedLineItems = useMemo(() => {
+    if (allActualsRows.length === 0) return [];
+    const seen = new Map();
+    allActualsRows.forEach((r) => {
+      if (r.unmapped && r.lineItem) {
+        const key = r.lineItem;
+        if (!seen.has(key)) seen.set(key, { lineItem: r.lineItem, centers: new Set(), count: 0 });
+        const entry = seen.get(key);
+        entry.count += 1;
+        entry.centers.add(r.centerLocation || 'Unknown');
+      }
+    });
+    return [...seen.values()]
+      .map((e) => ({ ...e, centers: [...e.centers].sort() }))
+      .sort((a, b) => a.lineItem.localeCompare(b.lineItem));
+  }, [allActualsRows]);
+
   // Determine current month index (last month with actual data)
   const currentMonthIndex = hasActuals
     ? Math.max(...getDataMonths(actualsRows)) - 1 // Convert 1-based month to 0-based index
@@ -380,6 +422,8 @@ export function DataProvider({ children }) {
     dataYears,
     dataMonths,
     currentMonthIndex,
+    actualsByCenter,
+    unmappedLineItems,
     allCategories,
     getCategoriesForCenter,
     actualsYear,

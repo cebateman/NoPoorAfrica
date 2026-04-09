@@ -146,14 +146,21 @@ export function parseDataCSV(text) {
 
 /**
  * Apply mapping to data rows: enrich each row with the Expense Type from the mapping.
+ * If no mapping entry is found, fall back to the line item name itself so the row
+ * still shows up distinctly in the dashboard (rather than being merged into a
+ * generic category bucket where it's hard to find).
  */
 export function applyMapping(dataRows, mapping) {
   return dataRows.map((row) => {
     // Try exact match first, then case-insensitive
     const mapped = mapping[row.lineItem] || mapping[row.lineItem.toLowerCase()];
+    const expenseType = mapped
+      ? mapped.expenseType
+      : (row.lineItem || row.category || 'Uncategorized');
     return {
       ...row,
-      expenseType: mapped ? mapped.expenseType : row.category,
+      expenseType,
+      unmapped: !mapped,
     };
   });
 }
