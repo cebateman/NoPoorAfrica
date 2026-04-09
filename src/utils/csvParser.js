@@ -110,37 +110,72 @@ export function parseMappingCSV(text) {
 }
 
 /**
+ * Find the first header that matches any of the candidate names or regex
+ * patterns (case-insensitive, whitespace-tolerant). Returns the original
+ * header so we can look up the raw value in the row object.
+ */
+function findHeader(headers, candidates) {
+  const normalize = (s) => s.toLowerCase().replace(/[\s_-]+/g, ' ').trim();
+  const normalized = headers.map((h) => ({ raw: h, norm: normalize(h) }));
+  for (const c of candidates) {
+    if (c instanceof RegExp) {
+      const match = normalized.find((h) => c.test(h.norm));
+      if (match) return match.raw;
+    } else {
+      const target = normalize(c);
+      const match = normalized.find((h) => h.norm === target);
+      if (match) return match.raw;
+    }
+  }
+  return '';
+}
+
+/**
  * Parse the data CSV into structured rows.
  * Columns: Center Location, Date, Month, Year, Line Item, Category, Account, Sub Account, Amount (MT), Amount (USD ...)
+ * Header matching is case-insensitive and tolerant of minor naming variations.
  */
 export function parseDataCSV(text) {
   const rawRows = parseCSV(text);
+  if (rawRows.length === 0) return [];
+
+  const headers = Object.keys(rawRows[0]);
+
+  // Resolve header names once (they're the same for every row)
+  const centerKey = findHeader(headers, [
+    'Center Location',
+    'Centre Location',
+    'Location',
+    'Center',
+    'Centre',
+    'Site',
+    /^(center|centre)\b/,
+  ]);
+  const dateKey = findHeader(headers, ['Date']);
+  const monthKey = findHeader(headers, ['Month']);
+  const yearKey = findHeader(headers, ['Year']);
+  const lineItemKey = findHeader(headers, ['Line Item', 'Line Item Account', 'Item']);
+  const categoryKey = findHeader(headers, ['Category']);
+  const accountKey = findHeader(headers, ['Account']);
+  const subAccountKey = findHeader(headers, ['Sub Account', 'Sub-Account', 'SubAccount']);
+  const usdKey = findHeader(headers, [/usd/]);
+  const mtKey = findHeader(headers, [/(^|[^a-z])mt([^a-z]|$)/]);
+  const notesKey = findHeader(headers, [/^notes?$/]);
 
   return rawRows
-    .map((row) => {
-      const headers = Object.keys(row);
-      // Find the USD amount column (contains "USD" in header)
-      const usdKey = headers.find((h) => h.includes('USD')) || '';
-      // Find the MT amount column (contains "MT" in header)
-      const mtKey = headers.find((h) => h.includes('MT') && !h.includes('USD')) || '';
-
-      // Find notes column (flexible naming)
-      const notesKey = headers.find((h) => /^notes?$/i.test(h.trim())) || '';
-
-      return {
-        centerLocation: row['Center Location'] || '',
-        date: row['Date'] || '',
-        month: parseInt(row['Month'], 10) || 0,
-        year: parseInt(row['Year'], 10) || 0,
-        lineItem: (row['Line Item'] || '').trim(),
-        category: (row['Category'] || '').trim(),
-        account: (row['Account'] || '').trim(),
-        subAccount: (row['Sub Account'] || '').trim(),
-        amountMT: parseUSD(mtKey ? row[mtKey] : ''),
-        amountUSD: parseUSD(usdKey ? row[usdKey] : ''),
-        notes: notesKey ? (row[notesKey] || '').trim() : '',
-      };
-    })
+    .map((row) => ({
+      centerLocation: (centerKey ? row[centerKey] : '') || '',
+      date: (dateKey ? row[dateKey] : '') || '',
+      month: parseInt(monthKey ? row[monthKey] : '', 10) || 0,
+      year: parseInt(yearKey ? row[yearKey] : '', 10) || 0,
+      lineItem: ((lineItemKey ? row[lineItemKey] : '') || '').trim(),
+      category: ((categoryKey ? row[categoryKey] : '') || '').trim(),
+      account: ((accountKey ? row[accountKey] : '') || '').trim(),
+      subAccount: ((subAccountKey ? row[subAccountKey] : '') || '').trim(),
+      amountMT: parseUSD(mtKey ? row[mtKey] : ''),
+      amountUSD: parseUSD(usdKey ? row[usdKey] : ''),
+      notes: notesKey ? (row[notesKey] || '').trim() : '',
+    }))
     .filter((r) => r.month > 0 && r.year > 0);
 }
 
